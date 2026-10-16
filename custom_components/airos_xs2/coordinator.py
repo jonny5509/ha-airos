@@ -65,6 +65,18 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                     )
                 data = self._parse_output(output)
 
+                # Older airOS firmware may put identity metadata in a single
+                # comma-separated banner, e.g. UBNT,deviceId=...,platform=NanoStation5.
+                # Parse the raw response so platform is available for Device Info
+                # even when the banner is not formatted as one key/value per line.
+                platform_match = re.search(
+                    r"(?:^|[,;\\s])platform\\s*=\\s*([^,;\\s]+)",
+                    output,
+                    re.IGNORECASE,
+                )
+                if platform_match:
+                    data["platform"] = platform_match.group(1)
+
                 # Legacy airOS builds differ significantly. Probe common BusyBox
                 # procfs/network commands independently; missing commands/files are
                 # ignored so one unsupported probe cannot break the core sensors.
