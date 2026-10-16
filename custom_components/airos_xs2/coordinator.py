@@ -222,6 +222,22 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 data.setdefault("ethernet_mac", macs[0])
                 if len(macs) > 1:
                     data.setdefault("wireless_mac", macs[1])
+        elif name == "wireless":
+            # /proc/net/wireless columns: status, link quality, signal, noise.
+            for line in output.splitlines():
+                match = re.match(
+                    r"^\\s*([A-Za-z0-9_.-]+):\\s+([0-9.]+)\\s+(-?[0-9.]+)\\s+(-?[0-9.]+)",
+                    line,
+                )
+                if not match:
+                    continue
+                interface, _status, quality, signal, noise = (
+                    match.group(1), match.group(2), match.group(2),
+                    match.group(3), match.group(4)
+                )
+                data.setdefault(f"{interface}_link_quality", _number(quality))
+                data.setdefault(f"{interface}_signal", _number(signal))
+                data.setdefault(f"{interface}_noise", _number(noise))
         elif name == "free":
             for line in output.splitlines():
                 match = re.match(r"^Mem:\s+(\d+)\s+(\d+)\s+(\d+)", line)
