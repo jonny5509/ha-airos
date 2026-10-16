@@ -1,6 +1,7 @@
-"""Tests for readable, stable airOS sensor metadata."""
+"""Tests for readable, stable airOS sensor metadata and grouping."""
 
-from custom_components.airos_xs2.sensor import _friendly_name, _metadata
+from custom_components.airos_xs2 import _device_type_for_key
+from custom_components.airos_xs2.sensor import _device_type, _friendly_name, _metadata
 
 
 def test_normalized_identity_fields_have_readable_names():
@@ -28,3 +29,23 @@ def test_dynamic_counter_metadata_has_units():
     assert _metadata("br0_rx_bytes")[1] == "B"
     assert _metadata("ath0_rx_packets")[1] == "packets"
     assert _metadata("eth0_tx_errors")[1] == "errors"
+
+
+def test_registry_migration_and_entities_use_same_device_groups():
+    keys = {
+        "frequency": "wireless",
+        "chain0_signal": "wireless",
+        "rx_rate": "wireless",
+        "wlan_ip": "wireless",
+        "station_signal_average": "wireless",
+        "ath0_rx_bytes": "wireless",
+        "ethernet_rx_bytes": "ethernet",
+        "lan_ip": "ethernet",
+        "br0_rx_bytes": "ethernet",
+        "eth0_tx_collisions": "ethernet",
+        "cpu_utilization": "system",
+        "uptime_seconds": "system",
+    }
+    for key, expected in keys.items():
+        assert _device_type_for_key(key) == expected
+        assert _device_type(key) == expected
