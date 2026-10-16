@@ -1,6 +1,7 @@
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
+import re
 
 BASE_SENSORS = {
     "signal": ("Wireless signal", "dBm"),
@@ -37,7 +38,9 @@ OPTIONAL_SENSORS = {
 
 
 def _friendly_name(key):
-    return key.replace("_", " ").replace("-", " ").strip().title()
+    """Create readable sensor names and use Ethernet instead of LAN."""
+    name = key.replace("_", " ").replace("-", " ").strip().title()
+    return re.sub(r"\bLan\b", "Ethernet", name)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
