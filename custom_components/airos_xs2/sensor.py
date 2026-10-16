@@ -1,5 +1,6 @@
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.entity import DeviceInfo
+
 from .const import DOMAIN
 
 WLAN_KEYS = {
@@ -43,7 +44,6 @@ OPTIONAL_SENSORS = {
     "wireless_tx_bytes": ("Wireless sent", "B"),
 }
 
-# airOS firmware and board revisions use several spellings for model metadata.
 _MODEL_KEYS = ("platform", "model", "board.name", "boardName", "deviceModel")
 
 
@@ -59,7 +59,6 @@ def _device_model(entry, data):
         if not isinstance(candidate, str) or not candidate.strip():
             continue
         model = candidate.strip()
-        # Normalize the common platform identifier to a human-readable label.
         if model.casefold() == "nanostation5":
             return "NanoStation 5"
         return model
@@ -77,7 +76,6 @@ def _network_for_key(key):
         "wlan", "wireless", "signal", "noise", "ccq", "snr", "essid", "frequency"
     )):
         return "wlan"
-    # Device-wide/system values and unclassified firmware fields go on LAN.
     return "lan"
 
 
@@ -85,9 +83,25 @@ async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]
     data = coordinator.data or {}
     sensors = [
+        AiRXS2Sensor(coordinator, entry, "device_model", None, "Hardware model", "device"),
+    ]
+    firmware_version = (
+        entry.data.get("firmware_version")
+        or data.get("firmwareVersion")
+        or data.get("firmware_version")
+    )
+    if firmware_version:
+        sensors.append(
+            AiRXS2Sensor(
+                coordinator, entry, "firmware_version", None,
+                "Firmware version", "device",
+            )
+        )
+
+    sensors.extend(
         AiRXS2Sensor(coordinator, entry, key, unit, label, _network_for_key(key))
         for key, (label, unit) in BASE_SENSORS.items()
-    ]
+    )
 
     added_keys = set(BASE_SENSORS)
     for key, (label, unit) in OPTIONAL_SENSORS.items():
@@ -97,7 +111,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
             )
             added_keys.add(key)
 
-    # Keep firmware-specific telemetry and assign every sensor to one device.
     for key, value in data.items():
         if key not in added_keys and value not in (None, ""):
             sensors.append(
@@ -110,14 +123,13 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities(sensors)
 
 
-
 class AiRXS2Sensor(SensorEntity):
     def __init__(self, coordinator, entry, key, unit, label=None, network="lan"):
         self.coordinator = coordinator
         self.key = key
         self._entry = entry
         self._network = network
-        self._attr_name = f"{network.upper()} {label or key}"
+        self._attr_name = label if network == "device" else f"{network.upper()} {label or key}"
         self._attr_unique_id = f"{entry.data['host']}_{key}"
         if unit:
             self._attr_native_unit_of_measurement = unit
@@ -127,7 +139,27 @@ class AiRXS2Sensor(SensorEntity):
         data = self.coordinator.data or {}
         model = _device_model(self._entry, data)
         base_name = model or self._entry.data["name"]
-        network_name = self._network.upper()
+        firmware_version = (
+            self._entry.data.get("firmware_version")
+            or data.get("firmwareVersion")
+            or data.get("firmware_version")
+        )
+        host = self._entry.data["host"]
+
+        if self._network == "device":
+            info = {
+                "identifiers": {(DOMAIN, host)},
+                "name": base_name,
+                "manufacturer": "Ubiquiti",
+            }
+            if model:
+                info["model"] = model
+            if firmware_version:
+                info["sw_version"] = str(firmware_version)
+            mac_address = self._entry.data.get("device_id")
+            if mac_address:
+                info["connections"] = {("mac", str(mac_address).strip())}
+            return DeviceInfo(**info)
 
         if self._network == "wlan":
             mac_address = next(
@@ -139,19 +171,14 @@ class AiRXS2Sensor(SensorEntity):
             mac_address = next(
                 (str(data[key]).strip() for key in ("mac", "ethernet_mac")
                  if data.get(key) not in (None, "")),
-                self._entry.data.get("device_id"),
+                None,
             )
 
-        firmware_version = (
-            self._entry.data.get("firmware_version")
-            or data.get("firmwareVersion")
-            or data.get("firmware_version")
-        )
-
         info = {
-            "identifiers": {(DOMAIN, f"{self._entry.data['host']}_{self._network}")},
-            "name": f"{base_name} {network_name}",
+            "identifiers": {(DOMAIN, f"{host}_{self._network}")},
+            "name": f"{base_name} {self._network.upper()}",
             "manufacturer": "Ubiquiti",
+            "via_device": (DOMAIN, host),
         }
         if model:
             info["model"] = model
@@ -163,4 +190,13 @@ class AiRXS2Sensor(SensorEntity):
 
     @property
     def native_value(self):
-        return (self.coordinator.data or {}).get(self.key)
+        data = self.coordinator.data or {}
+        if self.key == "device_model":
+            return _device_model(self._entry, data) or self._entry.data["name"]
+        if self.key == "firmware_version":
+            return (
+                self._entry.data.get("firmware_version")
+                or data.get("firmwareVersion")
+                or data.get("firmware_version")
+            )
+        return data.get(self.key)
