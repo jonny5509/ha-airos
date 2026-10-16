@@ -16,8 +16,19 @@ OPTIONAL_SENSORS = {
     "essid": ("SSID", None),
     "frequency": ("Frequency", "MHz"),
     "wlanMac": ("Wireless MAC", None),
+    "wireless_mac": ("Wireless MAC", None),
     "mac": ("MAC address", None),
     "mode": ("Wireless mode", None),
+    "channel_width": ("Channel width", "MHz"),
+    "txpower": ("Transmit power", "dBm"),
+    "tx_power": ("Transmit power", "dBm"),
+    "chain0_signal": ("Chain 0 signal", "dBm"),
+    "chain1_signal": ("Chain 1 signal", "dBm"),
+    "lan_ip": ("Ethernet IP address", None),
+    "lan_mac": ("Ethernet MAC", None),
+    "wlan_ip": ("Wireless IP address", None),
+    "rx_rate": ("Receive rate", "Mbps"),
+    "tx_rate": ("Transmit rate", "Mbps"),
     "hostname": ("Hostname", None),
     "uptime_seconds": ("Uptime", "s"),
     "ip_address": ("IP address", None),
@@ -48,6 +59,8 @@ ETHERNET_KEYS = {
     "ethernet_rx_bytes",
     "ethernet_tx_bytes",
     "ethernet_mac",
+    "lan_ip",
+    "lan_mac",
 }
 SYSTEM_SENSOR_ICONS = {
     "uptime_seconds": "mdi:timer-outline",
@@ -64,7 +77,34 @@ SYSTEM_SENSOR_ICONS = {
 
 
 def _friendly_name(key):
-    return key.replace("_", " ").replace("-", " ").strip().title()
+    """Turn firmware-specific keys into readable Home Assistant names."""
+    labels = {
+        "wlanMac": "Wireless MAC",
+        "wireless_mac": "Wireless MAC",
+        "ethernet_mac": "Ethernet MAC",
+        "lan_mac": "Ethernet MAC",
+        "mac": "MAC address",
+        "essid": "SSID",
+        "snr": "SNR",
+        "ccq": "CCQ",
+        "ip_address": "IP address",
+        "lan_ip": "Ethernet IP address",
+        "wlan_ip": "Wireless IP address",
+        "wlanTxRate": "Wireless TX rate",
+        "wlanRxRate": "Wireless RX rate",
+        "txpower": "Transmit power",
+        "tx_power": "Transmit power",
+    }
+    if key in labels:
+        return labels[key]
+
+    # Split camelCase as well as underscores, then preserve common acronyms.
+    import re
+
+    words = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", key)
+    words = words.replace("_", " ").replace("-", " ").strip().split()
+    acronyms = {"cpu": "CPU", "ip": "IP", "mac": "MAC", "snr": "SNR", "ccq": "CCQ", "wlan": "WLAN", "lan": "LAN", "rx": "RX", "tx": "TX", "ssid": "SSID"}
+    return " ".join(acronyms.get(word.lower(), word.capitalize()) for word in words)
 
 
 def _device_type(key):
@@ -118,7 +158,7 @@ class AiRXS2Sensor(SensorEntity):
         self._attr_unique_id = f"{entry.data['host']}_{key}"
         self._attr_entity_category = (
             EntityCategory.DIAGNOSTIC
-            if key in {"cpu_model", "hostname", "mac", "ethernet_mac", "wlanMac"}
+            if key in {"cpu_model", "hostname", "mac", "ethernet_mac", "lan_mac", "wlanMac", "wireless_mac"}
             else None
         )
         if unit:
@@ -137,7 +177,7 @@ class AiRXS2Sensor(SensorEntity):
         elif key in {"ethernet_tx_bytes", "wireless_tx_bytes"}:
             self._attr_icon = "mdi:upload-network"
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
-        elif key in {"signal", "noise"}:
+        elif key in {"signal", "noise", "chain0_signal", "chain1_signal"}:
             self._attr_icon = "mdi:signal"
         elif key == "snr":
             self._attr_icon = "mdi:signal-distance-variant"
