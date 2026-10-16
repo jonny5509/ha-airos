@@ -41,37 +41,64 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
         )
 
 
+    def _configured_metadata(self, entry):
+        """Parse legacy device details stored in the old name field."""
+        details = {}
+        for part in str(entry.data.get("name", "")).split(","):
+            if "=" in part:
+                key, value = part.split("=", 1)
+                details[key.strip()] = value.strip()
+        return details
+
+    def get_device_name(self, entry) -> str:
+        """Return a readable model name instead of the packed metadata string."""
+        details = self._configured_metadata(entry)
+        platform = details.get("platform") or (self.data or {}).get("platform")
+        if platform:
+            platform = str(platform).strip()
+            platform = re.sub(r"(?<=[a-z])(?=[A-Z0-9])", " ", platform)
+            platform = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", " ", platform)
+            platform = re.sub(r"(?<=\\D)(?=\\d)", " ", platform)
+            return platform
+        return str(entry.data.get("name", "airOS device")).split(",", 1)[0].strip()
+
     def get_device_info(self, entry) -> DeviceInfo:
         """Build Home Assistant device registry details from reported data."""
         data = self.data or {}
+        details = self._configured_metadata(entry)
 
         def first_value(*keys):
             for key in keys:
                 value = data.get(key)
                 if value not in (None, ""):
                     return str(value)
+                value = details.get(key)
+                if value not in (None, ""):
+                    return str(value)
             return None
 
         model = first_value(
             "board.name", "device_model", "devmodel", "model", "board", "platform"
-        ) or "airOS device"
+        ) or details.get("platform") or "airOS device"
         sw_version = first_value(
-            "fwversion", "firmware", "fw_version", "version", "build_version"
+            "fwversion", "firmware", "fw_version", "version", "build_version",
+            "firmwareVersion"
         )
         hw_version = first_value(
             "hw_version", "hwrev", "boardrev", "board_revision", "board.rev"
         )
         serial_number = first_value("serial_number", "serial", "serialno")
         mac = first_value(
-            "wlanMac", "wireless_mac", "mac", "ethernet_mac", "ethMac"
+            "wlanMac", "wireless_mac", "mac", "ethernet_mac", "ethMac", "deviceId"
         )
+        device_ip = details.get("deviceIp") or self.host
 
         info = {
             "identifiers": {(DOMAIN, entry.data["host"])},
-            "name": entry.data["name"],
+            "name": self.get_device_name(entry),
             "manufacturer": "Ubiquiti",
             "model": model,
-            "configuration_url": f"http://{self.host}",
+            "configuration_url": f"http://{device_ip}",
         }
         if sw_version:
             info["sw_version"] = sw_version
