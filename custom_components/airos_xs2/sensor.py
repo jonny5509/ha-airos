@@ -152,7 +152,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
         if key == "wireless_mac" and data.get("wlanMac") not in (None, ""):
             added_keys.add(key)
             continue
-        if data.get(key) not in (None, ""):
+        # IP discovery depends on an optional SSH probe. Register the entity
+        # even if the first probe fails, so it can become available on later polls.
+        if key == "ip_address" or data.get(key) not in (None, ""):
             sensors.append(
                 AiRXS2Sensor(
                     coordinator, entry, key, unit, label,
