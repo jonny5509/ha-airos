@@ -13,6 +13,11 @@ LAN_KEYS = {
     "mac", "ethernet_mac", "ip_address",
     "ethernet_rx_bytes", "ethernet_tx_bytes",
 }
+DEVICE_KEYS = {
+    "hostname", "uptime_seconds", "cpu_model",
+    "load_1m", "load_5m", "load_15m",
+    "mem_total_bytes", "mem_free_bytes", "mem_available_bytes",
+}
 
 BASE_SENSORS = {
     "signal": ("Signal", "dBm"),
@@ -67,17 +72,26 @@ def _device_model(entry, data):
 
 
 def _network_for_key(key):
-    """Place wireless telemetry on WLAN and other/system telemetry on LAN."""
+    """Return the owning Home Assistant device for each sensor."""
+    if key in DEVICE_KEYS:
+        return "device"
     if key in WLAN_KEYS:
         return "wlan"
     if key in LAN_KEYS:
         return "lan"
+
     normalized = key.casefold()
     if any(token in normalized for token in (
         "wlan", "wireless", "signal", "noise", "ccq", "snr", "essid", "frequency"
     )):
         return "wlan"
-    return "lan"
+    if any(token in normalized for token in (
+        "ethernet", "ip_address", "netmask", "gateway", "interface", "lan"
+    )):
+        return "lan"
+    # Unknown device-level airOS metrics belong to the main device, rather
+    # than being incorrectly presented as LAN telemetry.
+    return "device"
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -151,7 +165,9 @@ class AiRXS2Sensor(SensorEntity):
         self.key = key
         self._entry = entry
         self._network = network
-        self._attr_name = label if network == "device" else f"{network.upper()} {label or key}"
+        self._attr_name = (
+            label if network == "device" else f"{network.upper()} {label or key}"
+        )
         self._attr_unique_id = f"{entry.data['host']}_{key}"
         if unit:
             self._attr_native_unit_of_measurement = unit
