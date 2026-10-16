@@ -40,7 +40,7 @@ DEVICE_METADATA = {
     "deviceId": ("Device ID", None),
     "firmwareVersion": ("Firmware Version", None),
     "platform": ("Platform", None),
-    "deviceIp": ("Device IP Address", None),
+    "deviceIp": ("Configured Device IP Address", None),
 }
 
 
@@ -93,7 +93,7 @@ SENSOR_NAME_OVERRIDES = {
     "deviceId": "Device ID",
     "firmwareVersion": "Firmware Version",
     "platform": "Platform",
-    "deviceIp": "Device IP Address",
+    "deviceIp": "Configured Device IP Address",
 }
 
 
@@ -147,6 +147,11 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
     added_keys = set(BASE_SENSORS)
     for key, (label, unit) in OPTIONAL_SENSORS.items():
+        # Prefer the MAC reported directly by AirOS over the interface-probe
+        # alias when both describe the same wireless interface.
+        if key == "wireless_mac" and data.get("wlanMac") not in (None, ""):
+            added_keys.add(key)
+            continue
         if data.get(key) not in (None, ""):
             sensors.append(
                 AiRXS2Sensor(
