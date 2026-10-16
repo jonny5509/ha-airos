@@ -36,7 +36,6 @@ OPTIONAL_SENSORS = {
     "wireless_tx_bytes": ("Wireless sent", "B"),
 }
 
-# Metadata commonly appended to discovered AirOS device names.
 DEVICE_METADATA = {
     "deviceId": ("Device ID", None),
     "firmwareVersion": ("Firmware version", None),
@@ -58,7 +57,6 @@ def _parse_device_name(raw_name):
         if key in DEVICE_METADATA and value:
             metadata[key] = value
 
-    # Only shorten the name when one of the expected metadata fields was found.
     if metadata:
         return parts[0] or raw_name, metadata
     return raw_name, {}
@@ -70,23 +68,36 @@ def _friendly_name(key):
     return re.sub(r"\\bLan\\b", "Ethernet", name)
 
 
+def _device_kind(key):
+    """Return the Home Assistant device that should own this sensor."""
+    if key in BASE_SENSORS or key.startswith(("wireless_", "wlan")) or key in {
+        "essid", "frequency", "wireless_mac", "mode",
+    }:
+        return "wireless"
+    if key.startswith("ethernet_") or key == "ethernet_mac":
+        return "ethernet"
+    return "main"
+
+
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]
     data = coordinator.data or {}
     display_name, metadata = _parse_device_name(entry.data["name"])
     sensors = [
-        AiRXS2Sensor(coordinator, entry, key, unit, label, display_name=display_name)
+        AiRXS2Sensor(
+            coordinator, entry, key, unit, label, display_name=display_name,
+            device_kind=_device_kind(key),
+        )
         for key, (label, unit) in BASE_SENSORS.items()
     ]
 
-    # Include extra system/network telemetry when supported, plus every
-    # additional key returned by mca-status so firmware-specific data is not lost.
     added_keys = set(BASE_SENSORS)
     for key, (label, unit) in OPTIONAL_SENSORS.items():
         if data.get(key) not in (None, ""):
             sensors.append(
                 AiRXS2Sensor(
-                    coordinator, entry, key, unit, label, display_name=display_name
+                    coordinator, entry, key, unit, label,
+                    display_name=display_name, device_kind=_device_kind(key),
                 )
             )
             added_keys.add(key)
@@ -96,18 +107,16 @@ async def async_setup_entry(hass, entry, async_add_entities):
             sensors.append(
                 AiRXS2Sensor(
                     coordinator, entry, key, None, _friendly_name(key),
-                    display_name=display_name,
+                    display_name=display_name, device_kind=_device_kind(key),
                 )
             )
 
-    # Expose the metadata as separate Home Assistant sensors instead of
-    # leaving it embedded in the device's display name.
     for key, value in metadata.items():
         label, unit = DEVICE_METADATA[key]
         sensors.append(
             AiRXS2Sensor(
                 coordinator, entry, f"device_metadata_{key}", unit, label,
-                display_name=display_name, static_value=value,
+                display_name=display_name, static_value=value, device_kind="main",
             )
         )
 
@@ -117,13 +126,20 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class AiRXS2Sensor(SensorEntity):
     def __init__(
         self, coordinator, entry, key, unit, label=None, display_name=None,
-        static_value=None,
+        static_value=None, device_kind="main",
     ):
         self.coordinator = coordinator
         self.key = key
         self._entry = entry
         self._display_name = display_name or entry.data["name"]
         self._static_value = static_value
+        self._device_kind = device_kind
+        if device_kind == "ethernet":
+            self._device_name = f"{self._display_name} Ethernet"
+        elif device_kind == "wireless":
+            self._device_name = f"{self._display_name} Wireless"
+        else:
+            self._device_name = self._display_name
         self._attr_name = f"{self._display_name} {label or key}"
         self._attr_unique_id = f"{entry.data['host']}_{key}"
         if unit:
@@ -131,12 +147,18 @@ class AiRXS2Sensor(SensorEntity):
 
     @property
     def device_info(self):
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._entry.data["host"])},
-            name=self._display_name,
-            manufacturer="Ubiquiti",
-            model="Ubiquiti AirOS",
-        )
+        host = self._entry.data["host"]
+        info = {
+            "identifiers": {(DOMAIN, host if self._device_kind == "main" else f"{host}_{self._device_kind}")},
+            "name": self._device_name,
+            "manufacturer": "Ubiquiti",
+            "model": "Ubiquiti AirOS" if self._device_kind == "main" else (
+                "AirOS Ethernet" if self._device_kind == "ethernet" else "AirOS Wireless"
+            ),
+        }
+        if self._device_kind != "main":
+            info["via_device"] = (DOMAIN, host)
+        return DeviceInfo(**info)
 
     @property
     def native_value(self):
