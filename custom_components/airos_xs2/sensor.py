@@ -14,14 +14,30 @@ async def async_setup_entry(hass, entry, async_add_entities):
         AiRXS2Sensor(coordinator, entry, "wlanRxRate", "Mbps"),
     ]
 
+    # airOS firmware variants expose different mca-status keys. Add these
+    # informational entities only when the connected device actually reports
+    # the corresponding value, rather than creating permanently empty sensors.
+    optional_sensors = {
+        "essid": ("SSID", None),
+        "frequency": ("Frequency", "MHz"),
+        "wlanMac": ("Wireless MAC", None),
+        "mac": ("MAC address", None),
+        "mode": ("Wireless mode", None),
+        "hostname": ("Hostname", None),
+        "uptime": ("Uptime", None),
+    }
+    for key, (label, unit) in optional_sensors.items():
+        if coordinator.data and coordinator.data.get(key) not in (None, ""):
+            sensors.append(AiRXS2Sensor(coordinator, entry, key, unit, label))
+
     async_add_entities(sensors)
 
 class AiRXS2Sensor(SensorEntity):
-    def __init__(self, coordinator, entry, key, unit):
+    def __init__(self, coordinator, entry, key, unit, label=None):
         self.coordinator = coordinator
         self.key = key
         self._entry = entry
-        self._attr_name = f"{entry.data['name']} {key}"
+        self._attr_name = f"{entry.data['name']} {label or key}"
         self._attr_unique_id = f"{entry.data['host']}_{key}"
         self._attr_native_unit_of_measurement = unit
 
