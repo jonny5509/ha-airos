@@ -15,6 +15,8 @@ OPTIONAL_SENSORS = {
     "essid": ("Wireless SSID", None),
     "frequency": ("Wireless frequency", "MHz"),
     "wlanMac": ("Wireless MAC address", None),
+    "ethernet_mac": ("Ethernet MAC address", None),
+    "wireless_mac": ("Wireless MAC address", None),
     "mac": ("Device MAC address", None),
     "mode": ("Wireless mode", None),
     "hostname": ("Hostname", None),
