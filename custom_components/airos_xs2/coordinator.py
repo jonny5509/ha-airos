@@ -41,37 +41,64 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
         )
 
 
+    def _configured_metadata(self, entry):
+        """Parse device details packed into older config-entry names."""
+        details = {}
+        for part in str(entry.data.get("name", "")).split(","):
+            if "=" in part:
+                key, value = part.split("=", 1)
+                details[key.strip()] = value.strip()
+        return details
+
+    def get_device_name(self, entry) -> str:
+        """Return a human-readable device name."""
+        details = self._configured_metadata(entry)
+        platform = (self.data or {}).get("platform") or details.get("platform")
+        if platform:
+            platform = str(platform).strip()
+            platform = re.sub(r"(?<=[a-z])(?=[A-Z0-9])", " ", platform)
+            platform = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", " ", platform)
+            platform = re.sub(r"(?<=\\D)(?=\\d)", " ", platform)
+            return platform
+        return str(entry.data.get("name", "airOS device")).split(",", 1)[0].strip() or "airOS device"
+
     def get_device_info(self, entry) -> DeviceInfo:
-        """Build Home Assistant device registry details from reported data."""
+        """Build the main device registry entry."""
         data = self.data or {}
+        details = self._configured_metadata(entry)
 
         def first_value(*keys):
             for key in keys:
                 value = data.get(key)
                 if value not in (None, ""):
                     return str(value)
+                value = details.get(key)
+                if value not in (None, ""):
+                    return str(value)
             return None
 
         model = first_value(
             "board.name", "device_model", "devmodel", "model", "board", "platform"
-        ) or "airOS device"
+        ) or details.get("platform") or "airOS device"
         sw_version = first_value(
-            "fwversion", "firmware", "fw_version", "version", "build_version"
+            "fwversion", "firmware", "fw_version", "version", "build_version",
+            "firmwareVersion"
         )
         hw_version = first_value(
             "hw_version", "hwrev", "boardrev", "board_revision", "board.rev"
         )
         serial_number = first_value("serial_number", "serial", "serialno")
         mac = first_value(
-            "wlanMac", "wireless_mac", "mac", "ethernet_mac", "ethMac"
+            "wlanMac", "wireless_mac", "mac", "ethernet_mac", "ethMac", "deviceId"
         )
+        device_ip = details.get("deviceIp") or self.host
 
         info = {
             "identifiers": {(DOMAIN, entry.data["host"])},
-            "name": entry.data["name"],
+            "name": self.get_device_name(entry),
             "manufacturer": "Ubiquiti",
             "model": model,
-            "configuration_url": f"http://{self.host}",
+            "configuration_url": f"http://{device_ip}",
         }
         if sw_version:
             info["sw_version"] = sw_version
@@ -82,6 +109,18 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
         if mac:
             info["connections"] = {(CONNECTION_NETWORK_MAC, mac)}
         return DeviceInfo(**info)
+
+    def get_interface_device_info(self, entry, interface: str) -> DeviceInfo:
+        """Return a child device linked to the main radio."""
+        main_identifier = (DOMAIN, entry.data["host"])
+        labels = {"lan": "LAN / Ethernet", "wlan": "WLAN / Wireless"}
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"{entry.data['host']}_{interface}")},
+            name=f"{self.get_device_name(entry)} {labels[interface]}",
+            manufacturer="Ubiquiti",
+            model=labels[interface],
+            via_device=main_identifier,
+        )
 
     async def _run_command(self, conn, command):
         """Run a read-only command without relying on completed-result attributes."""
