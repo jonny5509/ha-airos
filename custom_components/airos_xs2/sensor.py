@@ -83,7 +83,7 @@ OPTIONAL_SENSORS = {
 }
 
 WIRELESS_KEYS = {
-    *BASE_SENSORS, "essid", "frequency", "wlanMac", "mode",
+    *BASE_SENSORS, "essid", "frequency", "wlanMac", "wireless_mac", "mode",
     "wireless_rx_bytes", "wireless_tx_bytes", "channel_width", "txpower", "tx_power",
     "chain0_signal", "chain1_signal", "rx_rate", "tx_rate", "wlan_ip",
     "wlanConnections", "connected_station_count", "station_signal_min",
@@ -267,7 +267,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             source for source, target in aliases.items()
             if target in data and source in data
         }
-        new_keys = candidates - known_keys - redundant
+        new_keys = {key for key in candidates if _is_supported_sensor(key)} - known_keys - redundant
         if not new_keys:
             return
         batch = []
