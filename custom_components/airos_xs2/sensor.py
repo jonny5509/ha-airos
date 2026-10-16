@@ -109,7 +109,7 @@ def _friendly_name(key):
     # Per-interface counters use the actual interface name instead of a vague
     # Ethernet label (for example, br0 — RX Bytes or ath0 — Link Status).
     interface_match = re.fullmatch(
-        r"([A-Za-z][A-Za-z0-9_.:-]*)_(interface|link_up|rx_bytes|rx_packets|rx_errors|rx_dropped|rx_fifo_errors|rx_frame_errors|rx_compressed|multicast|tx_bytes|tx_packets|tx_errors|tx_dropped|tx_fifo_errors|tx_carrier_errors|tx_collisions|tx_compressed|link_quality|signal|noise)",
+        r"([A-Za-z][A-Za-z0-9.:-]*)_(interface|link_up|rx_bytes|rx_packets|rx_errors|rx_dropped|rx_fifo_errors|rx_frame_errors|rx_compressed|multicast|tx_bytes|tx_packets|tx_errors|tx_dropped|tx_fifo_errors|tx_carrier_errors|tx_collisions|tx_compressed|link_quality|signal|noise)",
         key,
         re.IGNORECASE,
     )
@@ -139,7 +139,7 @@ def _friendly_name(key):
         "deviceId": "Device ID", "device_id": "Device ID",
         "deviceName": "Device Name", "device_name": "Device Name",
         "deviceIp": "Device IP Address", "device_ip": "Device IP Address",
-        "freq": "Radio Frequency", "cfgCrc": "Configuration Checksum",
+        "freq": "Radio Frequency", "Freq": "Radio Frequency", "cfgCrc": "Configuration Checksum",
         "cfg_crc": "Configuration Checksum",
         "wlan_ip": "Wireless IP address", "wlanTxRate": "Wireless TX rate",
         "wlanRxRate": "Wireless RX rate", "wlanConnections": "Wireless connections",
