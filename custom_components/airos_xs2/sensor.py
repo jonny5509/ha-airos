@@ -189,9 +189,16 @@ def _metadata(key):
 
 def _device_type(key):
     normalized = key.lower().replace("-", "_")
-    if key in WIRELESS_KEYS or "wlan" in normalized or "wireless" in normalized or normalized.startswith("ath") or key.startswith("station_"):
+    if (
+        key in WIRELESS_KEYS or "wlan" in normalized or "wireless" in normalized
+        or normalized.startswith("ath") or key.startswith("station_")
+    ):
         return "wireless"
-    if key in ETHERNET_KEYS or "ethernet" in normalized or normalized.startswith("lan") or normalized.startswith("eth"):
+    if (
+        key in ETHERNET_KEYS or "ethernet" in normalized
+        or normalized.startswith("lan") or normalized.startswith("eth")
+        or normalized.startswith("br")
+    ):
         return "ethernet"
     return "system"
 
@@ -222,6 +229,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
             "wlanNoise": "noise",
             "wlanCCQ": "ccq",
             "wlanSNR": "snr",
+            "apMac": "ap_mac", "apmac": "ap_mac",
+            "deviceId": "device_id", "deviceName": "device_name",
+            "deviceIp": "ip_address", "deviceIP": "ip_address",
+            "firmwareVersion": "firmware_version",
+            "cfgCrc": "config_checksum", "cfgCRC": "config_checksum",
+            "Freq": "frequency", "freq": "frequency",
         }
         redundant = {
             source for source, target in aliases.items()
