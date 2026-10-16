@@ -1,4 +1,5 @@
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
 
@@ -63,9 +64,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities(sensors)
 
 
-class AiRXS2Sensor(SensorEntity):
+class AiRXS2Sensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, entry, key, unit, label=None):
-        self.coordinator = coordinator
+        super().__init__(coordinator)
         self.key = key
         self._entry = entry
         self._attr_name = f"{coordinator.get_device_name(entry)} {label or key}"
