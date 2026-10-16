@@ -3,23 +3,23 @@ from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
 
 BASE_SENSORS = {
-    "signal": ("Signal", "dBm"),
-    "noise": ("Noise", "dBm"),
-    "ccq": ("CCQ", "%"),
-    "snr": ("SNR", "dB"),
+    "signal": ("Wireless signal", "dBm"),
+    "noise": ("Wireless noise", "dBm"),
+    "ccq": ("Wireless CCQ", "%"),
+    "snr": ("Wireless SNR", "dB"),
     "wlanTxRate": ("Wireless TX rate", "Mbps"),
     "wlanRxRate": ("Wireless RX rate", "Mbps"),
 }
 
 OPTIONAL_SENSORS = {
-    "essid": ("SSID", None),
-    "frequency": ("Frequency", "MHz"),
-    "wlanMac": ("Wireless MAC", None),
-    "mac": ("MAC address", None),
+    "essid": ("Wireless SSID", None),
+    "frequency": ("Wireless frequency", "MHz"),
+    "wlanMac": ("Wireless MAC address", None),
+    "mac": ("Device MAC address", None),
     "mode": ("Wireless mode", None),
     "hostname": ("Hostname", None),
     "uptime_seconds": ("Uptime", "s"),
-    "ip_address": ("IP address", None),
+    "ip_address": ("Device IP address", None),
     "cpu_model": ("CPU model", None),
     "load_1m": ("CPU load (1 min)", None),
     "load_5m": ("CPU load (5 min)", None),
