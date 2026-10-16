@@ -70,11 +70,13 @@ def _friendly_name(key):
 
 def _device_kind(key):
     """Return the Home Assistant device that should own this sensor."""
-    if key in BASE_SENSORS or key.startswith(("wireless_", "wlan")) or key in {
+    normalized = key.lower()
+    # Check WLAN first because "lan" is also present inside "wlan".
+    if normalized.startswith(("wlan", "wireless_")) or key in BASE_SENSORS or key in {
         "essid", "frequency", "wireless_mac", "mode",
     }:
         return "wireless"
-    if key.startswith("ethernet_") or key == "ethernet_mac":
+    if "lan" in normalized or normalized.startswith("ethernet_") or normalized == "ethernet_mac":
         return "ethernet"
     return "main"
 
