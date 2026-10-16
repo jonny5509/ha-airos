@@ -1,4 +1,5 @@
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity import DeviceInfo
 
 from .const import DOMAIN
@@ -82,6 +83,26 @@ def _network_for_key(key):
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]
     data = coordinator.data or {}
+    host = entry.data["host"]
+    model = _device_model(entry, data)
+    firmware_version = (
+        entry.data.get("firmware_version")
+        or data.get("firmwareVersion")
+        or data.get("firmware_version")
+    )
+
+    # Register the main hardware device first, matching EdgeOS's parent-first
+    # device setup pattern so LAN/WLAN children can link to a real registry ID.
+    device_registry = dr.async_get(hass)
+    parent_device = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, host)},
+        name=model or entry.data["name"],
+        manufacturer="Ubiquiti",
+        model=model,
+        sw_version=str(firmware_version) if firmware_version else None,
+    )
+
     sensors = [
         AiRXS2Sensor(coordinator, entry, "device_model", None, "Hardware model", "device"),
     ]
@@ -126,6 +147,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class AiRXS2Sensor(SensorEntity):
     def __init__(self, coordinator, entry, key, unit, label=None, network="lan"):
         self.coordinator = coordinator
+        self.hass = coordinator.hass
         self.key = key
         self._entry = entry
         self._network = network
@@ -178,7 +200,9 @@ class AiRXS2Sensor(SensorEntity):
             "identifiers": {(DOMAIN, f"{host}_{self._network}")},
             "name": f"{base_name} {self._network.upper()}",
             "manufacturer": "Ubiquiti",
-            "via_device": (DOMAIN, host),
+            "via_device_id": dr.async_get(self.hass).async_get_device(
+                identifiers={(DOMAIN, host)}
+            ).id,
         }
         if model:
             info["model"] = model
