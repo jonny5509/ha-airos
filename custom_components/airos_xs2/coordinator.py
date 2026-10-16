@@ -58,7 +58,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             platform = str(platform).strip()
             platform = re.sub(r"(?<=[a-z])(?=[A-Z0-9])", " ", platform)
             platform = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", " ", platform)
-            platform = re.sub(r"(?<=\\D)(?=\\d)", " ", platform)
+            platform = re.sub(r"(?<=\D)(?=\d)", " ", platform)
             return platform
         return str(entry.data.get("name", "airOS device")).split(",", 1)[0].strip() or "airOS device"
 
