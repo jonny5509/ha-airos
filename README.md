@@ -1,6 +1,6 @@
-# airOS XS2 (SSH)
+# Ubiquiti AirOS (SSH)
 
-Home Assistant custom integration for legacy Ubiquiti airOS XS2 devices (NanoStation2, PowerStation2, etc).
+Home Assistant custom integration for legacy Ubiquiti AirOS devices (NanoStation2, PowerStation2, etc).
 
 ## Features
 
@@ -55,7 +55,7 @@ errors reported after the integration loads.
 
 ## Compatibility
 
-- airOS XS2 firmware 4.x
+- Ubiquiti AirOS firmware 4.x
 - Uses legacy SSH algorithms required by older firmware
 
 ---
