@@ -110,6 +110,17 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             info["connections"] = {(CONNECTION_NETWORK_MAC, mac)}
         return DeviceInfo(**info)
 
+    def get_interface_device_info(self, entry, interface: str) -> DeviceInfo:
+        """Return a child device linked to the main radio."""
+        labels = {"lan": "LAN / Ethernet", "wlan": "WLAN / Wireless"}
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"{entry.data['host']}_{interface}")},
+            name=f"{self.get_device_name(entry)} {labels[interface]}",
+            manufacturer="Ubiquiti",
+            model=labels[interface],
+            via_device=(DOMAIN, entry.data["host"]),
+        )
+
     async def _run_command(self, conn, command):
         """Run a read-only command without relying on completed-result attributes."""
         async with conn.create_process(command) as proc:

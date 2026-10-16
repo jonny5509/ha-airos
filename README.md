@@ -10,6 +10,8 @@ Home Assistant custom integration for legacy Ubiquiti airOS XS2 devices (NanoSta
 - Exposes all additional `mca-status` key/value fields as sensors
 - Best-effort uptime, memory, load average, CPU model, IP/MAC, and Ethernet/wireless byte counters from common BusyBox/procfs commands (unsupported probes are skipped)
 - Reboot switch
+- Separate linked Home Assistant devices for LAN/Ethernet and WLAN/Wireless telemetry
+- System and device information remain on the main NanoStation device
 - Config Flow (UI install)
 - HACS compatible
 
