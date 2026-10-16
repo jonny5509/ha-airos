@@ -1,5 +1,6 @@
 import asyncssh
 import logging
+import re
 from datetime import timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.core import HomeAssistant
@@ -16,6 +17,13 @@ def _to_text(val) -> str:
     return str(val)
 
 
+def _number(value, default=0.0):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 class AiRXS2Coordinator(DataUpdateCoordinator):
     def __init__(self, hass: HomeAssistant, host, username, password, name):
         self.host = host
@@ -30,6 +38,15 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
         )
 
+    async def _run_command(self, conn, command):
+        """Run a read-only command without relying on completed-result attributes."""
+        async with conn.create_process(command) as proc:
+            stdout = await proc.stdout.read()
+            stderr = await proc.stderr.read()
+            await proc.wait()
+        output = _to_text(stdout)
+        return output if output.strip() else _to_text(stderr)
+
     async def _async_update_data(self):
         try:
             async with asyncssh.connect(
@@ -41,48 +58,113 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 encryption_algs=["aes128-cbc"],
                 server_host_key_algs=["ssh-rsa"],
             ) as conn:
-                # Read from the live process streams instead of the completed
-                # result object, which lacks stdout in the reported runtime.
-                async with conn.create_process("mca-status") as proc:
-                    stdout = await proc.stdout.read()
-                    stderr = await proc.stderr.read()
-                    # Do not depend on attributes of the value returned by wait().
-                    await proc.wait()
-
-                out_text = _to_text(stdout)
-                err_text = _to_text(stderr)
-
-                output = (
-                    out_text
-                    if "=" in out_text
-                    else (err_text if "=" in err_text else out_text)
-                )
-
+                output = await self._run_command(conn, "mca-status")
                 if "=" not in output:
                     raise UpdateFailed(
-                        f"mca-status returned no key=value output. stderr={err_text}"
+                        f"mca-status returned no key=value output: {output[:200]}"
                     )
+                data = self._parse_output(output)
 
-                return self._parse_output(output)
+                # Legacy airOS builds differ significantly. Probe common BusyBox
+                # procfs/network commands independently; missing commands/files are
+                # ignored so one unsupported probe cannot break the core sensors.
+                probes = (
+                    ("uptime", "cat /proc/uptime"),
+                    ("meminfo", "cat /proc/meminfo"),
+                    ("loadavg", "cat /proc/loadavg"),
+                    ("cpuinfo", "cat /proc/cpuinfo"),
+                    ("ifconfig", "ifconfig"),
+                    ("netdev", "cat /proc/net/dev"),
+                )
+                for name, command in probes:
+                    try:
+                        result = await self._run_command(conn, command)
+                        self._parse_probe(name, result, data)
+                    except Exception as err:
+                        _LOGGER.debug("airOS probe %s unavailable: %s", name, err)
+
+                return data
 
         except UpdateFailed:
             raise
         except Exception as e:
-            raise UpdateFailed(f"SSH error: {e}")
+            raise UpdateFailed(f"SSH error: {e}") from e
 
     def _parse_output(self, output: str):
         data = {}
         for line in output.splitlines():
             if "=" in line:
                 key, value = line.strip().split("=", 1)
-                data[key] = value
+                data[key] = value.strip()
 
-        # Keep your existing entities stable
-        data["signal"] = float(data.get("signal", 0))
-        data["noise"] = float(data.get("noise", 0))
-        data["ccq"] = float(data.get("ccq", 0)) / 10
+        data["signal"] = _number(data.get("signal"))
+        data["noise"] = _number(data.get("noise"))
+        data["ccq"] = _number(data.get("ccq")) / 10
         data["snr"] = data["signal"] - data["noise"]
-        data["wlanTxRate"] = float(data.get("wlanTxRate", 0))
-        data["wlanRxRate"] = float(data.get("wlanRxRate", 0))
-
+        data["wlanTxRate"] = _number(data.get("wlanTxRate"))
+        data["wlanRxRate"] = _number(data.get("wlanRxRate"))
         return data
+
+    def _parse_probe(self, name, output, data):
+        if not output:
+            return
+
+        if name == "uptime":
+            match = re.match(r"\s*([0-9]+(?:\.[0-9]+)?)", output)
+            if match:
+                data["uptime_seconds"] = float(match.group(1))
+        elif name == "meminfo":
+            values = {}
+            for line in output.splitlines():
+                match = re.match(r"^(MemTotal|MemFree|MemAvailable):\s+(\d+)", line)
+                if match:
+                    values[match.group(1)] = int(match.group(2)) * 1024
+            for source, target in (
+                ("MemTotal", "mem_total_bytes"),
+                ("MemFree", "mem_free_bytes"),
+                ("MemAvailable", "mem_available_bytes"),
+            ):
+                if source in values:
+                    data[target] = values[source]
+        elif name == "loadavg":
+            fields = output.split()
+            if len(fields) >= 3:
+                for index, key in enumerate(("load_1m", "load_5m", "load_15m")):
+                    data[key] = _number(fields[index])
+        elif name == "cpuinfo":
+            for line in output.splitlines():
+                if ":" in line and line.split(":", 1)[0].strip().lower() in (
+                    "system type", "model name", "processor"
+                ):
+                    value = line.split(":", 1)[1].strip()
+                    if value:
+                        data["cpu_model"] = value
+                        break
+        elif name == "ifconfig":
+            # Support both BusyBox legacy "inet addr:" and newer "inet " output.
+            match = re.search(r"inet addr:([0-9.]+)", output)
+            if not match:
+                match = re.search(r"\binet ([0-9.]+)", output)
+            if match:
+                data["ip_address"] = match.group(1)
+            macs = re.findall(r"(?:HWaddr|ether)\s+([0-9A-Fa-f:]{17})", output)
+            if macs:
+                data.setdefault("ethernet_mac", macs[0])
+                if len(macs) > 1:
+                    data.setdefault("wireless_mac", macs[1])
+        elif name == "netdev":
+            for line in output.splitlines():
+                if ":" not in line:
+                    continue
+                interface, stats = line.split(":", 1)
+                interface = interface.strip()
+                values = stats.split()
+                if len(values) < 9:
+                    continue
+                prefix = "wireless" if interface.lower().startswith(("wlan", "ath")) else (
+                    "ethernet" if interface.lower().startswith(("eth", "br")) else None
+                )
+                if not prefix:
+                    continue
+                data.setdefault(f"{prefix}_rx_bytes", int(values[0]))
+                data.setdefault(f"{prefix}_tx_bytes", int(values[8]))
