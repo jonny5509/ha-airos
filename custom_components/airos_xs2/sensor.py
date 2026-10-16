@@ -104,6 +104,28 @@ ETHERNET_KEYS = {
 }
 
 
+EDGEOS_COMPATIBLE_SYSTEM_KEYS = {
+    "cpu_utilization", "cpu_usage", "mem_used_bytes", "ram_usage",
+    "firmware_version", "firmwareVersion", "last_restart",
+}
+
+EDGEOS_INTERFACE_METRICS = (
+    "_rx_bytes", "_tx_bytes", "_rx_packets", "_tx_packets",
+    "_rx_errors", "_tx_errors", "_rx_dropped", "_tx_dropped",
+    "_rx_rate", "_tx_rate", "_rx_traffic", "_tx_traffic",
+)
+
+
+def _is_supported_sensor(key):
+    """Expose only sensor categories also provided by the EdgeOS integration."""
+    normalized = key.lower()
+    if normalized in EDGEOS_COMPATIBLE_SYSTEM_KEYS:
+        return True
+    # Keep equivalent per-interface network counters, but not airOS-specific
+    # radio quality, station, identity, or other telemetry.
+    return any(normalized.endswith(metric) for metric in EDGEOS_INTERFACE_METRICS)
+
+
 def _friendly_name(key):
     """Make firmware-specific keys readable without losing their identity."""
     # Per-interface counters use the actual interface name instead of a vague
