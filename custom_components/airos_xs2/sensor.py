@@ -159,18 +159,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
         # IP discovery depends on an optional SSH probe. Register the entity
         # even if the first probe fails, so it can become available on later polls.
         if key in {"ip_address", "uptime_seconds"} or data.get(key) not in (None, ""):
-            sensors.append(
-                AiRXS2Sensor(
-                    coordinator, entry, key, unit, label,
-                    display_name=display_name, device_kind=_device_kind(key),
-                )
-            )
-            added_keys.add(key)
-            # Expose the same device uptime reading on all three child devices.
-            # Keep the existing Ethernet unique ID stable; give the additional
-            # entities device-specific IDs so Home Assistant won't collide.
             if key == "uptime_seconds":
-                for uptime_device in ("main", "wireless"):
+                # Register one entity per device with distinct IDs. This also
+                # avoids reusing an old registry entry tied to the wrong device.
+                for uptime_device in ("main", "ethernet", "wireless"):
                     sensors.append(
                         AiRXS2Sensor(
                             coordinator, entry, key, unit, label,
@@ -178,6 +170,14 @@ async def async_setup_entry(hass, entry, async_add_entities):
                             unique_id_suffix=uptime_device,
                         )
                     )
+            else:
+                sensors.append(
+                    AiRXS2Sensor(
+                        coordinator, entry, key, unit, label,
+                        display_name=display_name, device_kind=_device_kind(key),
+                    )
+                )
+            added_keys.add(key)
 
     for key, value in data.items():
         if key not in added_keys and value not in (None, ""):
