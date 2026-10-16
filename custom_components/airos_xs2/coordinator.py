@@ -36,6 +36,8 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
         self.username = username
         self.password = password
         self.device_name = name
+        self._previous_cpu_ticks = None
+        self._previous_idle_ticks = None
         super().__init__(
             hass,
             logger=_LOGGER,
@@ -101,6 +103,18 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                     except Exception as err:
                         _LOGGER.debug("airOS probe %s unavailable: %s", probe, err)
 
+                total = data.get("cpu_total_ticks")
+                idle = data.get("cpu_idle_ticks")
+                if total is not None and idle is not None:
+                    if self._previous_cpu_ticks is not None and self._previous_idle_ticks is not None:
+                        total_delta = total - self._previous_cpu_ticks
+                        idle_delta = idle - self._previous_idle_ticks
+                        if total_delta > 0 and 0 <= idle_delta <= total_delta:
+                            data["cpu_utilization"] = round(
+                                100.0 * (total_delta - idle_delta) / total_delta, 1
+                            )
+                    self._previous_cpu_ticks = total
+                    self._previous_idle_ticks = idle
                 return data
         except UpdateFailed:
             raise
