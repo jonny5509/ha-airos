@@ -10,7 +10,7 @@ PLATFORMS = ["sensor", "switch"]
 WIRELESS_KEYS = {
     "signal", "noise", "ccq", "snr", "wlanTxRate", "wlanRxRate",
     "essid", "frequency", "wlanMac", "mode",
-    "wireless_rx_bytes", "wireless_tx_bytes",
+    "wireless_rx_bytes", "wireless_tx_bytes", "ip_address",
 }
 ETHERNET_KEYS = {"ethernet_rx_bytes", "ethernet_tx_bytes", "ethernet_mac"}
 
