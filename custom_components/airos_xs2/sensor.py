@@ -236,7 +236,13 @@ class AiRXS2Sensor(SensorEntity):
 
     @property
     def native_value(self):
-        return (self.coordinator.data or {}).get(self.key)
+        value = (self.coordinator.data or {}).get(self.key)
+        if self.key.endswith("_link_up") or self.key in {"lanPlugged"}:
+            if value is True or str(value).lower() in {"1", "true", "up", "yes"}:
+                return "Up" if self.key.endswith("_link_up") else "Connected"
+            if value is False or str(value).lower() in {"0", "false", "down", "no"}:
+                return "Down" if self.key.endswith("_link_up") else "Disconnected"
+        return value
 
     @property
     def device_info(self):
