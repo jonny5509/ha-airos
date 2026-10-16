@@ -7,6 +7,7 @@ Home Assistant custom integration for legacy Ubiquiti airOS XS2 devices (NanoSta
 - SSH polling of `mca-status`
 - Signal, Noise, CCQ, SNR
 - TX/RX rate monitoring
+- Optional SSID, frequency, MAC address, wireless mode, hostname, and uptime sensors when those keys are reported by the device's `mca-status` output
 - Reboot switch
 - Config Flow (UI install)
 - HACS compatible
