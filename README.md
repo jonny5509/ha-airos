@@ -8,7 +8,10 @@ Home Assistant custom integration for legacy Ubiquiti airOS XS2 devices (NanoSta
 - Signal, Noise, CCQ, SNR
 - TX/RX rate monitoring
 - Exposes all additional `mca-status` key/value fields as sensors
-- Best-effort uptime, memory, load average, CPU model, IP/MAC, and Ethernet/wireless byte counters from common BusyBox/procfs commands (unsupported probes are skipped)
+- Best-effort uptime, CPU utilization/load, memory and swap, kernel/CPU identity, IP/MAC, wireless-tools telemetry, and interface byte/packet/error/drop counters from BusyBox/procfs (unsupported probes are skipped)
+- Dynamically discovers sensor entities when new firmware fields or wireless clients appear after startup
+- Aggregated wireless-client signal, CCQ, rate and traffic metrics when `wstalist` exposes them
+- Exposes all additional `mca-status` key/value fields as sensors
 - Reboot switch
 - Config Flow (UI install)
 - HACS compatible
@@ -21,7 +24,7 @@ The integration organizes entities into a parent device and interface child devi
 - **Wireless child device** — signal, noise, CCQ, SNR, SSID, frequency, wireless rates, and wireless traffic counters.
 - **Ethernet child device** — Ethernet traffic counters and Ethernet MAC when the device exposes them.
 
-The wireless and Ethernet devices are linked to the system device in Home Assistant. Unsupported telemetry remains omitted, and all extra `mca-status` fields continue to be exposed as sensors. Existing sensor and switch unique IDs are preserved to help retain entity registry customizations during the layout change.
+The wireless and Ethernet devices are linked to the system device in Home Assistant. Unsupported telemetry remains omitted. Extra `mca-status` fields are exposed dynamically, and newly appearing fields/station metrics are registered after startup. Additional interface statistics are best-effort and depend on the firmware's BusyBox tools. Existing sensor and switch unique IDs are preserved to help retain entity registry customizations during the layout change.
 
 ---
 
