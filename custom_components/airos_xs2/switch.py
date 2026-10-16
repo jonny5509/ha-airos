@@ -1,18 +1,23 @@
 import asyncssh
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([AiRXS2RebootSwitch(coordinator, entry)])
 
+
 class AiRXS2RebootSwitch(SwitchEntity):
     def __init__(self, coordinator, entry):
         self.coordinator = coordinator
         self._entry = entry
-        self._attr_name = f"{entry.data['name']} Reboot"
+        self._attr_name = "Reboot"
         self._attr_unique_id = f"{entry.data['host']}_reboot"
+        self._attr_icon = "mdi:restart"
+        self._attr_entity_category = EntityCategory.CONFIG
 
     @property
     def device_info(self):
