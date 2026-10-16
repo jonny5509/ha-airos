@@ -24,11 +24,22 @@ Home Assistant custom integration for legacy Ubiquiti airOS XS2 devices (NanoSta
 
 ## Installation (HACS)
 
-1. HACS → Integrations → ⋮ → Custom Repositories
-2. Add: `https://github.com/cmptrblder/airos_xs2`
-3. Category: Integration
-4. Install
-5. Restart Home Assistant
+1. Open **HACS → Integrations → ⋮ → Custom repositories**.
+2. Add `https://github.com/jonny5509/ha-airos`.
+3. Select **Integration** as the category.
+4. If HACS asks for a branch, select `main`. Do not enter a short commit hash (for example, `5544ed9`) as a branch name.
+5. Install the integration and restart Home Assistant.
+
+### Troubleshooting HACS download errors
+
+If the Home Assistant log says HACS is trying to download a URL like
+`.../archive/refs/heads/5544ed9.zip` and receives a 404, HACS is treating
+`5544ed9` as a branch name, but that branch may not exist. In HACS, remove
+the incorrect custom-repository entry and add this repository again, making
+sure the selected branch is `main`. Then retry the download.
+
+This HACS configuration issue is separate from SSH connection or `mca-status`
+errors reported after the integration loads.
 
 ---
 
