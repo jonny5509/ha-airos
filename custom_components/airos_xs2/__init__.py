@@ -1,9 +1,102 @@
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr, entity_registry as er
+
 from .const import DOMAIN
 from .coordinator import AiRXS2Coordinator
 
 PLATFORMS = ["sensor", "switch"]
+
+# Keep registry migration classification aligned with the entities' DeviceInfo
+# grouping in sensor.py. These sets include normalized keys that may not carry
+# an obvious "wlan" or "ethernet" prefix.
+WIRELESS_KEYS = {
+    "signal", "noise", "ccq", "snr", "wlanTxRate", "wlanRxRate",
+    "essid", "frequency", "wlanMac", "mode", "wireless_mac", "wlan_ip",
+    "wireless_rx_bytes", "wireless_tx_bytes", "channel_width", "txpower",
+    "tx_power", "chain0_signal", "chain1_signal", "rx_rate", "tx_rate",
+    "wlanConnections", "connected_station_count", "station_signal_min",
+    "station_signal_max", "station_signal_average", "station_ccq_average",
+    "stations_rx_bytes", "stations_tx_bytes", "stations_rx_pps", "stations_tx_pps",
+    "stations_tx_rate_mbps", "stations_rx_rate_mbps", "wlanTxLatency",
+    "wlanPollingQuality", "wlanPollingCapacity", "ackTimeout", "distance",
+    "wlanRxPackets", "wlanTxPackets", "wlanRxErrors", "wlanTxErrors",
+    "wlanRxErrNwid", "wlanRxErrCrypt", "wlanRxErrFrag", "wlanRxErrRetries",
+    "wlanRxErrBmiss", "wlanRxErrOther", "wireless_link_quality",
+    "wireless_link_quality_max", "wireless_rate_mbps",
+}
+ETHERNET_KEYS = {
+    "ethernet_rx_bytes", "ethernet_tx_bytes", "ethernet_mac", "lan_ip", "lan_mac",
+    "lanSpeed", "lanPlugged", "lanRxPackets", "lanTxPackets",
+    "lanRxErrors", "lanTxErrors", "ethernet_rx_packets", "ethernet_tx_packets",
+    "ethernet_rx_errors", "ethernet_tx_errors", "ethernet_rx_dropped",
+    "ethernet_tx_dropped", "ethernet_link_speed_mbps",
+}
+
+
+def _device_type_for_key(key: str) -> str:
+    """Classify entities consistently with sensor entities' device grouping."""
+    normalized = key.lower().replace("-", "_")
+    if (
+        key in WIRELESS_KEYS or "wlan" in normalized or "wireless" in normalized
+        or normalized.startswith("ath") or key.startswith("station_")
+    ):
+        return "wireless"
+    if (
+        key in ETHERNET_KEYS or "ethernet" in normalized
+        or normalized.startswith("lan") or normalized.startswith("eth")
+        or normalized.startswith("br")
+    ):
+        return "ethernet"
+    return "system"
+
+
+async def _ensure_device_hierarchy(
+    hass: HomeAssistant, entry: ConfigEntry, model: str
+) -> None:
+    """Create parent/interface devices and migrate existing entity registry links."""
+    host = entry.data["host"]
+    name = entry.data["name"]
+    device_registry = dr.async_get(hass)
+    entity_registry = er.async_get(hass)
+
+    system = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, host)},
+        name=name,
+        manufacturer="Ubiquiti",
+        model=model,
+    )
+    wireless = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, f"{host}_wireless")},
+        name=f"{name} Wireless",
+        manufacturer="Ubiquiti",
+        model=f"{model} Wireless Interface",
+        via_device_id=system.id,
+    )
+    ethernet = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, f"{host}_ethernet")},
+        name=f"{name} Ethernet",
+        manufacturer="Ubiquiti",
+        model=f"{model} Ethernet Interface",
+        via_device_id=system.id,
+    )
+
+    # Preserve entity unique IDs while migrating existing registry assignments.
+    prefix = f"{host}_"
+    for entity in list(entity_registry.entities.values()):
+        if entity.config_entry_id != entry.entry_id or not entity.unique_id.startswith(prefix):
+            continue
+        key = entity.unique_id[len(prefix):]
+        device_type = _device_type_for_key(key) if key != "reboot" else "system"
+        target = wireless if device_type == "wireless" else (
+            ethernet if device_type == "ethernet" else system
+        )
+        if entity.device_id != target.id:
+            entity_registry.async_update_entity(entity.entity_id, device_id=target.id)
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.data.setdefault(DOMAIN, {})
@@ -17,9 +110,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     )
 
     await coordinator.async_config_entry_first_refresh()
-
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
+    model = str((coordinator.data or {}).get("platform") or "airOS")
+    await _ensure_device_hierarchy(hass, entry, model)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True

@@ -1,14 +1,16 @@
 # airOS XS2 (SSH)
 
-Home Assistant custom integration for legacy Ubiquiti airOS XS2 devices (NanoStation2, PowerStation2, etc).
+Home Assistant custom integration for legacy Ubiquiti airOS XS2 devices, including the **Ubiquiti NanoStation 5** running `XS5.ar2313.v4.0.1.4978.111219.2126`.
 
 ## Features
 
 - SSH polling of `mca-status`
 - Signal, Noise, CCQ, SNR
 - TX/RX rate monitoring
-- Exposes all additional `mca-status` key/value fields as sensors
-- Best-effort uptime, memory, load average, CPU model, IP/MAC, and Ethernet/wireless byte counters from common BusyBox/procfs commands (unsupported probes are skipped)
+- Exposes available `mca-status` fields as sensors, with normalized names for device identity, firmware, frequency, and uptime
+- Best-effort uptime, CPU utilization/load, memory and swap, kernel/CPU identity, IP/MAC, wireless-tools telemetry, and interface byte/packet/error/drop counters from BusyBox/procfs (unsupported probes are skipped)
+- Dynamically discovers sensor entities when new firmware fields or wireless clients appear after startup
+- Aggregated wireless-client signal, CCQ, rate and traffic metrics when `wstalist` exposes them
 - Reboot switch
 - Config Flow (UI install)
 - HACS compatible
@@ -21,7 +23,7 @@ The integration organizes entities into a parent device and interface child devi
 - **Wireless child device** — signal, noise, CCQ, SNR, SSID, frequency, wireless rates, and wireless traffic counters.
 - **Ethernet child device** — Ethernet traffic counters and Ethernet MAC when the device exposes them.
 
-The wireless and Ethernet devices are linked to the system device in Home Assistant. Unsupported telemetry remains omitted, and all extra `mca-status` fields continue to be exposed as sensors. Existing sensor and switch unique IDs are preserved to help retain entity registry customizations during the layout change.
+The wireless and Ethernet devices are linked to the system device in Home Assistant. Unsupported telemetry remains omitted. Extra `mca-status` fields are exposed dynamically, and newly appearing fields/station metrics are registered after startup. Additional interface statistics are best-effort and depend on the firmware's BusyBox tools. Existing sensor and switch unique IDs are preserved to help retain entity registry customizations during the layout change.
 
 ---
 
@@ -65,8 +67,11 @@ errors reported after the integration loads.
 
 ## Compatibility
 
-- airOS XS2 firmware 4.x
+- Target device: Ubiquiti NanoStation 5, firmware `XS5.ar2313.v4.0.1.4978.111219.2126`
+- Other airOS XS2-family devices may work, but telemetry depends on model and firmware
 - Uses legacy SSH algorithms required by older firmware
+- Temperature and voltage sensors are only available if the device firmware exposes those measurements
+- Optional BusyBox/procfs commands are best-effort; unsupported commands are skipped
 
 ---
 
