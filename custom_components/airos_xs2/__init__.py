@@ -29,12 +29,13 @@ ETHERNET_KEYS = {
 def _device_type_for_key(key: str) -> str:
     """Classify interface entities by key, including future telemetry."""
     normalized = key.lower().replace("-", "_")
-    if key in WIRELESS_KEYS or "wlan" in normalized or "wireless" in normalized:
+    if key in WIRELESS_KEYS or "wlan" in normalized or "wireless" in normalized or normalized.startswith("ath"):
         return "wireless"
     if (
         key in ETHERNET_KEYS
         or "ethernet" in normalized
         or normalized.startswith("lan")
+        or normalized.startswith("eth")
     ):
         return "ethernet"
     return "system"
