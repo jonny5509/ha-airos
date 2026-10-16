@@ -100,6 +100,14 @@ def _friendly_name(key):
         "wlan_ip": "Wireless IP address",
         "wlanTxRate": "Wireless TX rate",
         "wlanRxRate": "Wireless RX rate",
+        "wlanLinkQuality": "Link quality",
+        "wlanLinkQualityPercent": "Link quality",
+        "wlanSignal": "Signal",
+        "wlanNoise": "Noise",
+        "wlanSNR": "SNR",
+        "wlanCCQ": "CCQ",
+        "wlanFrequency": "Frequency",
+        "wlanESSID": "SSID",
         "txpower": "Transmit power",
         "tx_power": "Transmit power",
     }
@@ -109,9 +117,13 @@ def _friendly_name(key):
     # Split camelCase as well as underscores, then preserve common acronyms.
     import re
 
-    words = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", key)
+    # WLAN is an interface prefix, not part of the friendly sensor name.
+    # Known fields above retain domain-specific labels; unknown WLAN fields
+    # also get readable names rather than exposing the raw prefix.
+    display_key = key[4:] if key.lower().startswith("wlan") else key
+    words = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", display_key)
     words = words.replace("_", " ").replace("-", " ").strip().split()
-    acronyms = {"cpu": "CPU", "ip": "IP", "mac": "MAC", "snr": "SNR", "ccq": "CCQ", "wlan": "WLAN", "lan": "LAN", "rx": "RX", "tx": "TX", "ssid": "SSID"}
+    acronyms = {"cpu": "CPU", "ip": "IP", "mac": "MAC", "snr": "SNR", "ccq": "CCQ", "wlan": "WLAN", "lan": "LAN", "rx": "RX", "tx": "TX", "ssid": "SSID", "essid": "SSID"}
     return " ".join(acronyms.get(word.lower(), word.capitalize()) for word in words)
 
 
