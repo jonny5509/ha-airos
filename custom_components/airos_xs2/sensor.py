@@ -95,6 +95,23 @@ class AiRXS2Sensor(SensorEntity):
     def device_info(self):
         data = self.coordinator.data or {}
         model = _device_model(self._entry, data)
+
+        # Prefer MAC addresses reported by airOS/procfs, then use the
+        # deviceId from the legacy identity metadata as a fallback.
+        mac_address = next(
+            (
+                str(data.get(key)).strip()
+                for key in ("mac", "wlanMac", "ethernet_mac", "wireless_mac")
+                if data.get(key) not in (None, "")
+            ),
+            self._entry.data.get("device_id"),
+        )
+        firmware_version = (
+            self._entry.data.get("firmware_version")
+            or data.get("firmwareVersion")
+            or data.get("firmware_version")
+        )
+
         info = {
             "identifiers": {(DOMAIN, self._entry.data["host"])},
             "name": model or self._entry.data["name"],
@@ -102,10 +119,10 @@ class AiRXS2Sensor(SensorEntity):
         }
         if model:
             info["model"] = model
-        if self._entry.data.get("firmware_version"):
-            info["sw_version"] = self._entry.data["firmware_version"]
-        if self._entry.data.get("device_id"):
-            info["connections"] = {("mac", self._entry.data["device_id"])}
+        if firmware_version:
+            info["sw_version"] = str(firmware_version)
+        if mac_address:
+            info["connections"] = {("mac", str(mac_address).strip())}
         return DeviceInfo(**info)
 
     @property
