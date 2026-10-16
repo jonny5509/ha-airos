@@ -213,12 +213,14 @@ class AiRXS2Sensor(SensorEntity):
         host = self._entry.data["host"]
         name = self._entry.data["name"]
 
+        model = str((self.coordinator.data or {}).get("platform") or "airOS")
+
         if self._device_type == "wireless":
             return DeviceInfo(
                 identifiers={(DOMAIN, f"{host}_wireless")},
                 name=f"{name} Wireless",
                 manufacturer="Ubiquiti",
-                model="airOS XS2 Wireless Interface",
+                model=f"{model} Wireless Interface",
                 via_device=(DOMAIN, host),
             )
         if self._device_type == "ethernet":
@@ -226,7 +228,7 @@ class AiRXS2Sensor(SensorEntity):
                 identifiers={(DOMAIN, f"{host}_ethernet")},
                 name=f"{name} Ethernet",
                 manufacturer="Ubiquiti",
-                model="airOS XS2 Ethernet Interface",
+                model=f"{model} Ethernet Interface",
                 via_device=(DOMAIN, host),
             )
 
@@ -234,7 +236,7 @@ class AiRXS2Sensor(SensorEntity):
             identifiers={(DOMAIN, host)},
             name=name,
             manufacturer="Ubiquiti",
-            model="airOS XS2",
+            model=model,
         )
 
     @property
