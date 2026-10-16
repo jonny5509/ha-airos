@@ -128,6 +128,10 @@ def _device_kind(key):
         "essid", "frequency", "wireless_mac", "mode",
     }:
         return "wireless"
+    # Keep the procfs uptime reading on the Ethernet child device, leaving
+    # any AirOS-reported uptime sensor on the main device.
+    if key == "uptime_seconds":
+        return "ethernet"
     if "lan" in normalized or normalized.startswith("ethernet_") or normalized == "ethernet_mac":
         return "ethernet"
     return "main"
