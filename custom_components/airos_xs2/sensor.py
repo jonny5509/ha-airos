@@ -227,7 +227,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
             "wlanIpAddress": "wlan_ip",
             "wlanFrequency": "frequency",
             "wlanESSID": "essid",
-            "wlanESSID": "essid",
             "wlanSignal": "signal",
             "wlanNoise": "noise",
             "wlanCCQ": "ccq",
