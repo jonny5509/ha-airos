@@ -128,6 +128,10 @@ def _device_kind(key):
         "essid", "frequency", "wireless_mac", "mode",
     }:
         return "wireless"
+    # Keep the procfs uptime reading on the Ethernet child device, leaving
+    # any AirOS-reported uptime sensor on the main device.
+    if key == "uptime_seconds":
+        return "ethernet"
     if "lan" in normalized or normalized.startswith("ethernet_") or normalized == "ethernet_mac":
         return "ethernet"
     return "main"
@@ -154,13 +158,25 @@ async def async_setup_entry(hass, entry, async_add_entities):
             continue
         # IP discovery depends on an optional SSH probe. Register the entity
         # even if the first probe fails, so it can become available on later polls.
-        if key == "ip_address" or data.get(key) not in (None, ""):
-            sensors.append(
-                AiRXS2Sensor(
-                    coordinator, entry, key, unit, label,
-                    display_name=display_name, device_kind=_device_kind(key),
+        if key in {"ip_address", "uptime_seconds"} or data.get(key) not in (None, ""):
+            if key == "uptime_seconds":
+                # Register one entity per device with distinct IDs. This also
+                # avoids reusing an old registry entry tied to the wrong device.
+                for uptime_device in ("main", "ethernet", "wireless"):
+                    sensors.append(
+                        AiRXS2Sensor(
+                            coordinator, entry, key, unit, label,
+                            display_name=display_name, device_kind=uptime_device,
+                            unique_id_suffix=uptime_device,
+                        )
+                    )
+            else:
+                sensors.append(
+                    AiRXS2Sensor(
+                        coordinator, entry, key, unit, label,
+                        display_name=display_name, device_kind=_device_kind(key),
+                    )
                 )
-            )
             added_keys.add(key)
 
     for key, value in data.items():
@@ -187,7 +203,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class AiRXS2Sensor(SensorEntity):
     def __init__(
         self, coordinator, entry, key, unit, label=None, display_name=None,
-        static_value=None, device_kind="main",
+        static_value=None, device_kind="main", unique_id_suffix=None,
     ):
         self.coordinator = coordinator
         self.key = key
@@ -202,7 +218,9 @@ class AiRXS2Sensor(SensorEntity):
         else:
             self._device_name = self._display_name
         self._attr_name = f"{self._display_name} {label or key}"
-        self._attr_unique_id = f"{entry.data['host']}_{key}"
+        self._attr_unique_id = f"{entry.data['host']}_{key}" + (
+            f"_{unique_id_suffix}" if unique_id_suffix else ""
+        )
         if unit:
             self._attr_native_unit_of_measurement = unit
 
