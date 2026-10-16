@@ -62,6 +62,7 @@ WIRELESS_KEYS = {
     "rx_rate",
     "tx_rate",
     "wlan_ip",
+    "ip_address",
 }
 ETHERNET_KEYS = {
     "ethernet_rx_bytes",
