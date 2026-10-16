@@ -226,15 +226,12 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             # /proc/net/wireless columns: status, link quality, signal, noise.
             for line in output.splitlines():
                 match = re.match(
-                    r"^\s*([A-Za-z0-9_.-]+):\s+([0-9.]+)\s+(-?[0-9.]+)\s+(-?[0-9.]+)",
+                    r"^\s*([A-Za-z0-9_.-]+):\s+([0-9A-Fa-f]+)\s+([0-9.]+)\s+(-?[0-9.]+)\s+(-?[0-9.]+)",
                     line,
                 )
                 if not match:
                     continue
-                interface, _status, quality, signal, noise = (
-                    match.group(1), match.group(2), match.group(2),
-                    match.group(3), match.group(4)
-                )
+                interface, _status, quality, signal, noise = match.groups()
                 data.setdefault(f"{interface}_link_quality", _number(quality))
                 data.setdefault(f"{interface}_signal", _number(signal))
                 data.setdefault(f"{interface}_noise", _number(noise))
