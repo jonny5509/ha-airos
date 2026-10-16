@@ -41,15 +41,17 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 encryption_algs=["aes128-cbc"],
                 server_host_key_algs=["ssh-rsa"],
             ) as conn:
-                # run() collects stdout/stderr and waits for command completion.
-                # This avoids mixing up SSHClientProcess and SSHCompletedProcess.
-                result = await conn.run("mca-status", check=False)
+                # Read from the live process streams instead of the completed
+                # result object, which lacks stdout in the reported runtime.
+                async with conn.create_process("mca-status") as proc:
+                    stdout = await proc.stdout.read()
+                    stderr = await proc.stderr.read()
+                    # Do not depend on attributes of the value returned by wait().
+                    await proc.wait()
 
-                out_text = _to_text(result.stdout)
-                err_text = _to_text(result.stderr)
+                out_text = _to_text(stdout)
+                err_text = _to_text(stderr)
 
-                # Some firmware prints to stderr even on success; prefer stdout
-                # when it contains key=value pairs.
                 output = (
                     out_text
                     if "=" in out_text
@@ -58,9 +60,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
 
                 if "=" not in output:
                     raise UpdateFailed(
-                        "mca-status returned no key=value output "
-                        f"(exit status: {getattr(result, 'exit_status', 'unknown')}). "
-                        f"stderr={err_text}"
+                        f"mca-status returned no key=value output. stderr={err_text}"
                     )
 
                 return self._parse_output(output)
