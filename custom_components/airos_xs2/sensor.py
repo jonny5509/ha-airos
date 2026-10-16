@@ -26,8 +26,8 @@ OPTIONAL_SENSORS = {
     "hostname": ("Hostname", None), "uptime_seconds": ("Uptime", "s"),
     "ip_address": ("IP address", None), "cpu_model": ("CPU model", None),
     "kernel_version": ("Kernel version", None),
-    "load_1m": ("CPU load (1 min)", None), "load_5m": ("CPU load (5 min)", None),
-    "load_15m": ("CPU load (15 min)", None),
+    "load_1m": ("System Load (1 min)", None), "load_5m": ("System Load (5 min)", None),
+    "load_15m": ("System Load (15 min)", None),
     "mem_total_bytes": ("Memory total", "B"), "mem_free_bytes": ("Memory free", "B"),
     "mem_available_bytes": ("Memory available", "B"), "mem_used_bytes": ("Memory used", "B"),
     "mem_buffers_bytes": ("Memory buffers", "B"), "mem_cached_bytes": ("Memory cached", "B"),
@@ -135,6 +135,12 @@ def _friendly_name(key):
         "ip_address": "IP Address", "lan_ip": "Ethernet IP Address",
         "lanIpAddress": "LAN IP Address", "wlanIpAddress": "Wireless IP Address",
         "uptime": "Device Uptime (raw)", "mac": "Device MAC Address",
+        "ap_mac": "Access Point MAC Address", "apMac": "Access Point MAC Address",
+        "device_id": "Device ID", "deviceId": "Device ID",
+        "device_name": "Device Name", "deviceName": "Device Name",
+        "firmware_version": "Firmware Version", "firmwareVersion": "Firmware Version",
+        "config_checksum": "Configuration Checksum", "cfgCrc": "Configuration Checksum",
+        "Freq": "Radio Frequency", "freq": "Radio Frequency",
         "apMac": "Access Point MAC Address", "apmac": "Access Point MAC Address",
         "deviceId": "Device ID", "device_id": "Device ID",
         "deviceName": "Device Name", "device_name": "Device Name",
@@ -251,7 +257,7 @@ class AiRXS2Sensor(SensorEntity):
         if unit:
             self._attr_native_unit_of_measurement = unit
         if key in {
-            "cpu_model", "hostname", "kernel_version", "mac", "ethernet_mac",
+            "cpu_model", "hostname", "kernel_version", "mac", "ap_mac", "device_id", "device_name", "firmware_version", "config_checksum", "ethernet_mac",
             "lan_mac", "wlanMac", "wireless_mac", "platform",
         }:
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
