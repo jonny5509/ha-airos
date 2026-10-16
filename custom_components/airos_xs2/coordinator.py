@@ -153,7 +153,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             "signal", "noise", "ccq", "snr", "frequency", "wlanTxRate",
             "wlanRxRate", "wlanConnections", "uptime_seconds",
             "mem_total_bytes", "mem_free_bytes", "ethernet_rx_bytes",
-            "ethernet_tx_bytes", "wireless_rx_bytes", "wireless_tx_bytes", "frequency",
+            "ethernet_tx_bytes", "wireless_rx_bytes", "wireless_tx_bytes",
         }
         for source, target in aliases.items():
             if source not in data:
@@ -164,7 +164,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 if match:
                     value = float(match.group(0))
                     if target in {
-                        "wlanConnections", "uptime_seconds", "mem_total_bytes",
+                        "wlanConnections", "uptime_seconds", "frequency", "mem_total_bytes",
                         "mem_free_bytes", "ethernet_rx_bytes", "ethernet_tx_bytes",
                         "wireless_rx_bytes", "wireless_tx_bytes",
                     }:
