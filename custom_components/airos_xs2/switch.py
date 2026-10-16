@@ -25,7 +25,7 @@ class AiRXS2RebootSwitch(SwitchEntity):
             identifiers={(DOMAIN, self._entry.data["host"])},
             name=self._entry.data["name"],
             manufacturer="Ubiquiti",
-            model="airOS XS2",
+            model="Ubiquiti AirOs",
         )
 
     async def async_turn_on(self, **kwargs):
