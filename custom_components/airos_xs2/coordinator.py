@@ -98,7 +98,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 data[key] = value.strip()
 
         # Missing or malformed readings must stay unavailable, not look like real zeroes.
-        for key in ("signal", "noise", "wlanTxRate", "wlanRxRate"):
+        for key in ("signal", "noise", "wlanTxRate", "wlanRxRate", "frequency"):
             value = _number(data.get(key))
             if value is None:
                 data.pop(key, None)
