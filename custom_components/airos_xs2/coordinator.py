@@ -1,4 +1,5 @@
 import asyncssh
+import json
 import logging
 import re
 from datetime import timedelta
@@ -87,6 +88,9 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                     ("cpuinfo", "cat /proc/cpuinfo"),
                     ("ifconfig", "ifconfig"),
                     ("netdev", "cat /proc/net/dev"),
+                    ("wireless", "cat /proc/net/wireless"),
+                    ("free", "free"),
+                    ("wstalist", "wstalist"),
                 )
                 for name, command in probes:
                     try:
@@ -103,18 +107,72 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"SSH error: {e}") from e
 
     def _parse_output(self, output: str):
+        """Parse line-oriented and legacy concatenated mca-status output."""
         data = {}
-        for line in output.splitlines():
-            if "=" in line:
-                key, value = line.strip().split("=", 1)
-                data[key] = value.strip()
+        # Old airOS may return all key=value fields concatenated on one line.
+        pattern = re.compile(
+            r"([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.*?)"
+            r"(?=(?:[A-Za-z][A-Za-z0-9_]*)\s*=|$)",
+            re.DOTALL,
+        )
+        for match in pattern.finditer(output.strip()):
+            key = match.group(1)
+            value = match.group(2).strip().strip(",; ")
+            if value:
+                data[key] = value
 
-        data["signal"] = _number(data.get("signal"))
-        data["noise"] = _number(data.get("noise"))
-        data["ccq"] = _number(data.get("ccq")) / 10
-        data["snr"] = data["signal"] - data["noise"]
-        data["wlanTxRate"] = _number(data.get("wlanTxRate"))
-        data["wlanRxRate"] = _number(data.get("wlanRxRate"))
+        aliases = {
+            "wlanSignal": "signal", "wlanNoise": "noise",
+            "wlanCCQ": "ccq", "wlanSNR": "snr",
+            "wlanFrequency": "frequency", "wlanESSID": "essid",
+            "uptime": "uptime_seconds", "lanIpAddress": "lan_ip",
+            "wlanIpAddress": "wlan_ip", "lanRxBytes": "ethernet_rx_bytes",
+            "lanTxBytes": "ethernet_tx_bytes", "wlanRxBytes": "wireless_rx_bytes",
+            "wlanTxBytes": "wireless_tx_bytes",
+        }
+        numeric = {
+            "signal", "noise", "ccq", "snr", "frequency", "wlanTxRate",
+            "wlanRxRate", "wlanConnections", "uptime_seconds", "mem_total_bytes",
+            "mem_free_bytes", "ethernet_rx_bytes", "ethernet_tx_bytes",
+            "wireless_rx_bytes", "wireless_tx_bytes",
+        }
+        for source, target in aliases.items():
+            if source not in data:
+                continue
+            raw = data[source]
+            if target in numeric:
+                number = re.search(r"-?\d+(?:\.\d+)?", str(raw))
+                if number:
+                    value = float(number.group(0))
+                    if target in {"wlanConnections", "uptime_seconds", "mem_total_bytes",
+                                  "mem_free_bytes", "ethernet_rx_bytes", "ethernet_tx_bytes",
+                                  "wireless_rx_bytes", "wireless_tx_bytes"}:
+                        value = int(value)
+                    if target in {"mem_total_bytes", "mem_free_bytes"}:
+                        value *= 1024
+                    if target == "ccq" and value > 100:
+                        value /= 10
+                    data[target] = value
+            else:
+                data[target] = raw
+
+        # Older firmware reports CCQ in tenths of a percent and memory in kB.
+        for source, target in (("memTotal", "mem_total_bytes"), ("memFree", "mem_free_bytes")):
+            if source in data and target not in data:
+                match = re.search(r"\d+", str(data[source]))
+                if match:
+                    data[target] = int(match.group(0)) * 1024
+        if "ccq" in data:
+            data["ccq"] = _number(data["ccq"])
+            if data["ccq"] > 100:
+                data["ccq"] /= 10
+        if "signal" in data and "noise" in data:
+            data["snr"] = _number(data["signal"]) - _number(data["noise"])
+        elif "snr" in data:
+            data["snr"] = _number(data["snr"])
+        for key in numeric:
+            if key in data:
+                data[key] = _number(data[key], data[key])
         return data
 
     def _parse_probe(self, name, output, data):
@@ -164,6 +222,39 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 data.setdefault("ethernet_mac", macs[0])
                 if len(macs) > 1:
                     data.setdefault("wireless_mac", macs[1])
+        elif name == "free":
+            for line in output.splitlines():
+                match = re.match(r"^Mem:\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)", line)
+                if match:
+                    data.setdefault("mem_total_bytes", int(match.group(1)) * 1024)
+                    data.setdefault("mem_used_bytes", int(match.group(2)) * 1024)
+                    data.setdefault("mem_free_bytes", int(match.group(3)) * 1024)
+        elif name == "wstalist":
+            try:
+                stations = json.loads(output)
+            except (ValueError, TypeError):
+                stations = None
+            if isinstance(stations, list):
+                data["connected_station_count"] = len(stations)
+                for field in ("rx_bytes", "tx_bytes", "rx_pps", "tx_pps"):
+                    values = [
+                        _number(station.get("stats", {}).get(field))
+                        for station in stations
+                        if isinstance(station, dict)
+                        and isinstance(station.get("stats"), dict)
+                        and station.get("stats", {}).get(field) is not None
+                    ]
+                    if values:
+                        data[f"stations_{field}"] = sum(values)
+                signals = [_number(station["signal"]) for station in stations
+                           if isinstance(station, dict) and station.get("signal") is not None]
+                ccqs = [_number(station["ccq"]) for station in stations
+                        if isinstance(station, dict) and station.get("ccq") is not None]
+                if signals:
+                    data["station_signal_min"] = min(signals)
+                    data["station_signal_max"] = max(signals)
+                if ccqs:
+                    data["station_ccq_average"] = sum(ccqs) / len(ccqs)
         elif name == "netdev":
             for line in output.splitlines():
                 if ":" not in line:
