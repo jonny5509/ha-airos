@@ -67,3 +67,24 @@ def test_parse_load_average_process_counts():
     assert data["load_15m"] == 0.3
     assert data["processes_running"] == 2
     assert data["processes_total"] == 55
+
+
+
+def test_parse_legacy_nanostation5_identity_aliases():
+    coordinator = coordinator_for_parsing()
+    data = coordinator._parse_output(
+        "apMac=D2:21:F9:96:52:D7\\n"
+        "deviceId=00:15:6D:BD:D9:B4\\n"
+        "deviceName=UBNT\\n"
+        "deviceIp=192.168.4.214\\n"
+        "firmwareVersion=XS5.ar2313.v4.0.1.4978.111219.2126\\n"
+        "Freq=5745\\n"
+        "cfgCrc=40ca6cd2\\n"
+    )
+    assert data["ap_mac"] == "D2:21:F9:96:52:D7"
+    assert data["device_id"] == "00:15:6D:BD:D9:B4"
+    assert data["device_name"] == "UBNT"
+    assert data["ip_address"] == "192.168.4.214"
+    assert data["firmware_version"] == "XS5.ar2313.v4.0.1.4978.111219.2126"
+    assert data["frequency"] == 5745
+    assert data["config_checksum"] == "40ca6cd2"
