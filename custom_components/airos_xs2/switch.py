@@ -11,7 +11,7 @@ class AiRXS2RebootSwitch(SwitchEntity):
     def __init__(self, coordinator, entry):
         self.coordinator = coordinator
         self._entry = entry
-        self._attr_name = f"{entry.data['name']} Reboot"
+        self._attr_name = f"{coordinator.get_device_name(entry)} Reboot"
         self._attr_unique_id = f"{entry.data['host']}_reboot"
 
     @property
