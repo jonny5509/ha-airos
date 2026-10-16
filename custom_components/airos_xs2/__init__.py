@@ -16,9 +16,15 @@ ETHERNET_KEYS = {"ethernet_rx_bytes", "ethernet_tx_bytes", "ethernet_mac"}
 
 
 def _device_type_for_key(key: str) -> str:
-    if key in WIRELESS_KEYS:
+    """Classify interface entities by key, including future telemetry."""
+    normalized = key.lower().replace("-", "_")
+    if key in WIRELESS_KEYS or "wlan" in normalized or "wireless" in normalized:
         return "wireless"
-    if key in ETHERNET_KEYS:
+    if (
+        key in ETHERNET_KEYS
+        or "ethernet" in normalized
+        or normalized.startswith("lan")
+    ):
         return "ethernet"
     return "system"
 
@@ -54,8 +60,7 @@ async def _ensure_device_hierarchy(hass: HomeAssistant, entry: ConfigEntry) -> N
         via_device_id=system.id,
     )
 
-    # Existing entities keep their unique IDs, so explicitly move their registry
-    # records as well as providing device_info for newly created entities.
+    # Preserve entity unique IDs while migrating existing registry assignments.
     prefix = f"{host}_"
     for entity in list(entity_registry.entities.values()):
         if entity.config_entry_id != entry.entry_id or not entity.unique_id.startswith(prefix):
