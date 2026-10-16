@@ -68,7 +68,7 @@ class AiRXS2Sensor(SensorEntity):
         self.coordinator = coordinator
         self.key = key
         self._entry = entry
-        self._attr_name = f"{entry.data['name']} {label or key}"
+        self._attr_name = f"{coordinator.get_device_name(entry)} {label or key}"
         self._attr_unique_id = f"{entry.data['host']}_{key}"
         if unit:
             self._attr_native_unit_of_measurement = unit
