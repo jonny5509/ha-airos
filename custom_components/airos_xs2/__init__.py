@@ -12,6 +12,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     # config-entry name. Split it once so Home Assistant displays a readable
     # device name and retains the remaining fields separately.
     normalized = normalize_device_metadata(entry.data.get("name"))
+    # Earlier versions may already have saved the hardware platform as the name.
+    # If platform metadata exists, standardize those entries too.
+    if entry.data.get("platform"):
+        normalized["name"] = "Ubiquiti AirOS"
     new_data = {
         **entry.data,
         **{
