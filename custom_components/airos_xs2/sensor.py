@@ -1,4 +1,4 @@
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
 import re
@@ -8,8 +8,8 @@ BASE_SENSORS = {
     "noise": ("Wireless Noise", "dBm"),
     "ccq": ("Wireless CCQ", "%"),
     "snr": ("Wireless SNR", "dB"),
-    "wlanTxRate": ("Wireless Transmit Rate", "Mbps"),
-    "wlanRxRate": ("Wireless Receive Rate", "Mbps"),
+    "wlanTxRate": ("Wireless Transmit Rate", "Mbit/s"),
+    "wlanRxRate": ("Wireless Receive Rate", "Mbit/s"),
 }
 
 OPTIONAL_SENSORS = {
@@ -203,6 +203,26 @@ class AiRXS2Sensor(SensorEntity):
         self._attr_unique_id = f"{entry.data['host']}_{key}"
         if unit:
             self._attr_native_unit_of_measurement = unit
+
+        # Tell Home Assistant how to interpret readings and long-term statistics.
+        if key in {"signal", "noise"}:
+            self._attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
+        elif key == "frequency":
+            self._attr_device_class = SensorDeviceClass.FREQUENCY
+        elif key == "uptime_seconds":
+            self._attr_device_class = SensorDeviceClass.DURATION
+        elif key in {"mem_total_bytes", "mem_free_bytes", "mem_available_bytes",
+                     "ethernet_rx_bytes", "ethernet_tx_bytes",
+                     "wireless_rx_bytes", "wireless_tx_bytes"}:
+            self._attr_device_class = SensorDeviceClass.DATA_SIZE
+
+        if key in {"ethernet_rx_bytes", "ethernet_tx_bytes",
+                   "wireless_rx_bytes", "wireless_tx_bytes"}:
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        elif key in {"signal", "noise", "ccq", "snr", "wlanTxRate", "wlanRxRate",
+                     "frequency", "load_1m", "load_5m", "load_15m",
+                     "mem_total_bytes", "mem_free_bytes", "mem_available_bytes"}:
+            self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
     def device_info(self):
