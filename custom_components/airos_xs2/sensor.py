@@ -41,6 +41,7 @@ WIRELESS_KEYS = {
     "essid",
     "frequency",
     "wlanMac",
+    "wireless_mac",
     "mode",
     "wireless_rx_bytes",
     "wireless_tx_bytes",
@@ -113,7 +114,7 @@ class AiRXS2Sensor(SensorEntity):
         self._attr_unique_id = f"{entry.data['host']}_{key}"
         self._attr_entity_category = (
             EntityCategory.DIAGNOSTIC
-            if key in {"cpu_model", "hostname", "mac", "ethernet_mac", "wlanMac"}
+            if key in {"cpu_model", "hostname", "mac", "ethernet_mac", "wlanMac", "wireless_mac"}
             else None
         )
         if unit:
@@ -155,7 +156,7 @@ class AiRXS2Sensor(SensorEntity):
                 identifiers={(DOMAIN, f"{host}_wireless")},
                 name=f"{name} Wireless",
                 manufacturer="Ubiquiti",
-                model="airOS XS2 Wireless Interface",
+                model="Ubiquiti AirOs Wireless Interface",
                 via_device=(DOMAIN, host),
             )
         if self._device_type == "ethernet":
@@ -163,7 +164,7 @@ class AiRXS2Sensor(SensorEntity):
                 identifiers={(DOMAIN, f"{host}_ethernet")},
                 name=f"{name} Ethernet",
                 manufacturer="Ubiquiti",
-                model="airOS XS2 Ethernet Interface",
+                model="Ubiquiti AirOs Ethernet Interface",
                 via_device=(DOMAIN, host),
             )
 
@@ -171,7 +172,7 @@ class AiRXS2Sensor(SensorEntity):
             identifiers={(DOMAIN, host)},
             name=name,
             manufacturer="Ubiquiti",
-            model="airOS XS2",
+            model="Ubiquiti AirOs",
         )
 
     @property
