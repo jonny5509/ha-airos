@@ -62,10 +62,62 @@ def _parse_device_name(raw_name):
     return raw_name, {}
 
 
+SENSOR_NAME_OVERRIDES = {
+    "signal": "Wireless Signal",
+    "noise": "Wireless Noise",
+    "ccq": "Wireless CCQ",
+    "snr": "Wireless SNR",
+    "wlanTxRate": "Wireless Transmit Rate",
+    "wlanRxRate": "Wireless Receive Rate",
+    "wlanMac": "Wireless MAC Address",
+    "wireless_mac": "Wireless MAC Address",
+    "ethernet_mac": "Ethernet MAC Address",
+    "mac": "Device MAC Address",
+    "essid": "Wireless Network Name (SSID)",
+    "frequency": "Wireless Frequency",
+    "mode": "Wireless Mode",
+    "hostname": "Hostname",
+    "uptime_seconds": "Uptime",
+    "ip_address": "Device IP Address",
+    "cpu_model": "CPU Model",
+    "load_1m": "CPU Load (1 Minute)",
+    "load_5m": "CPU Load (5 Minutes)",
+    "load_15m": "CPU Load (15 Minutes)",
+    "mem_total_bytes": "Total Memory",
+    "mem_free_bytes": "Free Memory",
+    "mem_available_bytes": "Available Memory",
+    "ethernet_rx_bytes": "Ethernet Bytes Received",
+    "ethernet_tx_bytes": "Ethernet Bytes Sent",
+    "wireless_rx_bytes": "Wireless Bytes Received",
+    "wireless_tx_bytes": "Wireless Bytes Sent",
+    "deviceId": "Device ID",
+    "firmwareVersion": "Firmware Version",
+    "platform": "Platform",
+    "deviceIp": "Device IP Address",
+}
+
+
 def _friendly_name(key):
-    """Create readable sensor names and use Ethernet instead of LAN."""
-    name = key.replace("_", " ").replace("-", " ").strip().title()
-    return re.sub(r"\\bLan\\b", "Ethernet", name)
+    """Return a readable, consistently capitalized name for a sensor key."""
+    if key in SENSOR_NAME_OVERRIDES:
+        return SENSOR_NAME_OVERRIDES[key]
+
+    # Convert camelCase and separators into words before applying protocol terms.
+    name = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", key)
+    name = re.sub(r"[_-]+", " ", name).strip()
+    words = name.split()
+    normalized = []
+    for word in words:
+        lower = word.lower()
+        if lower in {"wlan", "wireless", "wifi"}:
+            normalized.append("Wireless")
+        elif lower in {"lan", "ethernet", "eth"}:
+            normalized.append("Ethernet")
+        elif lower in {"mac", "ip", "cpu", "ccq", "snr", "ssid", "tx", "rx", "mhz", "dbm", "id", "url", "ram"}:
+            normalized.append(lower.upper())
+        else:
+            normalized.append(lower.capitalize())
+    return " ".join(normalized) or "Unknown"
 
 
 def _device_kind(key):
