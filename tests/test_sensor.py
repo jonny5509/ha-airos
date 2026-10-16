@@ -49,3 +49,29 @@ def test_registry_migration_and_entities_use_same_device_groups():
     for key, expected in keys.items():
         assert _device_type_for_key(key) == expected
         assert _device_type(key) == expected
+
+
+
+def test_only_edgeos_compatible_sensor_categories_are_exposed():
+    from custom_components.airos_xs2.sensor import _is_supported_sensor
+
+    supported = {
+        "cpu_utilization",
+        "mem_used_bytes",
+        "firmware_version",
+        "last_restart",
+        "br0_rx_bytes",
+        "eth0_tx_packets",
+        "ath0_rx_errors",
+        "ethernet_rx_dropped",
+        "wireless_tx_bytes",
+    }
+    unsupported = {
+        "signal", "noise", "ccq", "snr", "frequency", "essid",
+        "chain0_signal", "station_signal_average", "connected_station_count",
+        "hostname", "cpu_model", "uptime_seconds", "mem_free_bytes",
+        "wlanTxRate", "wireless_rate_mbps",
+    }
+
+    assert all(_is_supported_sensor(key) for key in supported)
+    assert not any(_is_supported_sensor(key) for key in unsupported)
