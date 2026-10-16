@@ -158,7 +158,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             continue
         # IP discovery depends on an optional SSH probe. Register the entity
         # even if the first probe fails, so it can become available on later polls.
-        if key == "ip_address" or data.get(key) not in (None, ""):
+        if key in {"ip_address", "uptime_seconds"} or data.get(key) not in (None, ""):
             sensors.append(
                 AiRXS2Sensor(
                     coordinator, entry, key, unit, label,
@@ -166,6 +166,18 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 )
             )
             added_keys.add(key)
+            # Expose the same device uptime reading on all three child devices.
+            # Keep the existing Ethernet unique ID stable; give the additional
+            # entities device-specific IDs so Home Assistant won't collide.
+            if key == "uptime_seconds":
+                for uptime_device in ("main", "wireless"):
+                    sensors.append(
+                        AiRXS2Sensor(
+                            coordinator, entry, key, unit, label,
+                            display_name=display_name, device_kind=uptime_device,
+                            unique_id_suffix=uptime_device,
+                        )
+                    )
 
     for key, value in data.items():
         if key not in added_keys and value not in (None, ""):
@@ -191,7 +203,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class AiRXS2Sensor(SensorEntity):
     def __init__(
         self, coordinator, entry, key, unit, label=None, display_name=None,
-        static_value=None, device_kind="main",
+        static_value=None, device_kind="main", unique_id_suffix=None,
     ):
         self.coordinator = coordinator
         self.key = key
@@ -206,7 +218,9 @@ class AiRXS2Sensor(SensorEntity):
         else:
             self._device_name = self._display_name
         self._attr_name = f"{self._display_name} {label or key}"
-        self._attr_unique_id = f"{entry.data['host']}_{key}"
+        self._attr_unique_id = f"{entry.data['host']}_{key}" + (
+            f"_{unique_id_suffix}" if unique_id_suffix else ""
+        )
         if unit:
             self._attr_native_unit_of_measurement = unit
 
