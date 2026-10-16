@@ -1,5 +1,7 @@
 # airOS XS2 (SSH)
 
+<p align="center"><img src="logo.svg" alt="airOS logo" width="360"></p>
+
 Home Assistant custom integration for legacy Ubiquiti airOS XS2 devices (NanoStation2, PowerStation2, etc).
 
 ## Features
