@@ -54,6 +54,14 @@ WIRELESS_KEYS = {
     "mode",
     "wireless_rx_bytes",
     "wireless_tx_bytes",
+    "channel_width",
+    "txpower",
+    "tx_power",
+    "chain0_signal",
+    "chain1_signal",
+    "rx_rate",
+    "tx_rate",
+    "wlan_ip",
 }
 ETHERNET_KEYS = {
     "ethernet_rx_bytes",
