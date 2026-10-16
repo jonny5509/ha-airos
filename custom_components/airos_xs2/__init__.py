@@ -11,8 +11,19 @@ WIRELESS_KEYS = {
     "signal", "noise", "ccq", "snr", "wlanTxRate", "wlanRxRate",
     "essid", "frequency", "wlanMac", "mode",
     "wireless_rx_bytes", "wireless_tx_bytes",
+    "wlanConnections", "connected_station_count", "station_signal_min",
+    "station_signal_max", "station_ccq_average", "stations_rx_bytes",
+    "stations_tx_bytes", "stations_rx_pps", "stations_tx_pps",
+    "wlanTxLatency", "wlanPollingQuality", "wlanPollingCapacity",
+    "ackTimeout", "distance", "wlanRxPackets", "wlanTxPackets",
+    "wlanRxErrors", "wlanTxErrors", "wlanRxErrNwid", "wlanRxErrCrypt",
+    "wlanRxErrFrag", "wlanRxErrRetries", "wlanRxErrBmiss", "wlanRxErrOther",
 }
-ETHERNET_KEYS = {"ethernet_rx_bytes", "ethernet_tx_bytes", "ethernet_mac"}
+ETHERNET_KEYS = {
+    "ethernet_rx_bytes", "ethernet_tx_bytes", "ethernet_mac", "lan_ip", "lan_mac",
+    "lanSpeed", "lanPlugged", "lanRxPackets", "lanTxPackets",
+    "lanRxErrors", "lanTxErrors",
+}
 
 
 def _device_type_for_key(key: str) -> str:
