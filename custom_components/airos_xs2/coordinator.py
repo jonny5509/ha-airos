@@ -71,7 +71,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 # Parse the raw response so platform is available for Device Info
                 # even when the banner is not formatted as one key/value per line.
                 platform_match = re.search(
-                    r"(?:^|[,;\\s])platform\\s*=\\s*([^,;\\s]+)",
+                    r"(?:^|[,;\s])platform\s*=\s*([^,;\s]+)",
                     output,
                     re.IGNORECASE,
                 )
@@ -226,7 +226,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             # /proc/net/wireless columns: status, link quality, signal, noise.
             for line in output.splitlines():
                 match = re.match(
-                    r"^\\s*([A-Za-z0-9_.-]+):\\s+([0-9.]+)\\s+(-?[0-9.]+)\\s+(-?[0-9.]+)",
+                    r"^\s*([A-Za-z0-9_.-]+):\s+([0-9.]+)\s+(-?[0-9.]+)\s+(-?[0-9.]+)",
                     line,
                 )
                 if not match:
