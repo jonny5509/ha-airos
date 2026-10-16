@@ -17,7 +17,7 @@ def _to_text(val) -> str:
     return str(val)
 
 
-def _number(value, default=0.0):
+def _number(value, default=None):
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -97,12 +97,25 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 key, value = line.strip().split("=", 1)
                 data[key] = value.strip()
 
-        data["signal"] = _number(data.get("signal"))
-        data["noise"] = _number(data.get("noise"))
-        data["ccq"] = _number(data.get("ccq")) / 10
-        data["snr"] = data["signal"] - data["noise"]
-        data["wlanTxRate"] = _number(data.get("wlanTxRate"))
-        data["wlanRxRate"] = _number(data.get("wlanRxRate"))
+        # Missing or malformed readings must stay unavailable, not look like real zeroes.
+        for key in ("signal", "noise", "wlanTxRate", "wlanRxRate"):
+            value = _number(data.get(key))
+            if value is None:
+                data.pop(key, None)
+            else:
+                data[key] = value
+
+        raw_ccq = _number(data.get("ccq"))
+        if raw_ccq is None:
+            data.pop("ccq", None)
+        else:
+            # AirOS mca-status reports CCQ in tenths of a percent.
+            data["ccq"] = raw_ccq / 10
+
+        if "signal" in data and "noise" in data:
+            data["snr"] = data["signal"] - data["noise"]
+        else:
+            data.pop("snr", None)
         return data
 
     def _parse_probe(self, name, output, data):
@@ -166,5 +179,11 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 )
                 if not prefix:
                     continue
-                data.setdefault(f"{prefix}_rx_bytes", int(values[0]))
-                data.setdefault(f"{prefix}_tx_bytes", int(values[8]))
+                try:
+                    rx_bytes = int(values[0])
+                    tx_bytes = int(values[8])
+                except (TypeError, ValueError):
+                    _LOGGER.debug("Skipping malformed /proc/net/dev row: %s", line)
+                    continue
+                data.setdefault(f"{prefix}_rx_bytes", rx_bytes)
+                data.setdefault(f"{prefix}_tx_bytes", tx_bytes)
