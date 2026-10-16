@@ -79,7 +79,7 @@ class AiRXS2Sensor(SensorEntity):
             identifiers={(DOMAIN, self._entry.data["host"])},
             name=self._entry.data["name"],
             manufacturer="Ubiquiti",
-            model="airOS XS2",
+            model="Ubiquiti AirOS",
         )
 
     @property
