@@ -106,11 +106,41 @@ ETHERNET_KEYS = {
 
 def _friendly_name(key):
     """Make firmware-specific keys readable without losing their identity."""
+    # Per-interface counters use the actual interface name instead of a vague
+    # Ethernet label (for example, br0 — RX Bytes or ath0 — Link Status).
+    interface_match = re.fullmatch(
+        r"([A-Za-z][A-Za-z0-9.:-]*)_(interface|link_up|rx_bytes|rx_packets|rx_errors|rx_dropped|rx_fifo_errors|rx_frame_errors|rx_compressed|multicast|tx_bytes|tx_packets|tx_errors|tx_dropped|tx_fifo_errors|tx_carrier_errors|tx_collisions|tx_compressed|link_quality|signal|noise)",
+        key,
+        re.IGNORECASE,
+    )
+    if interface_match:
+        interface, metric = interface_match.groups()
+        metric_labels = {
+            "interface": "Interface", "link_up": "Link Status",
+            "rx_bytes": "RX Bytes", "rx_packets": "RX Packets",
+            "rx_errors": "RX Errors", "rx_dropped": "RX Dropped Packets",
+            "rx_fifo_errors": "RX FIFO Errors", "rx_frame_errors": "RX Frame Errors",
+            "rx_compressed": "RX Compressed Packets", "multicast": "Multicast Packets",
+            "tx_bytes": "TX Bytes", "tx_packets": "TX Packets",
+            "tx_errors": "TX Errors", "tx_dropped": "TX Dropped Packets",
+            "tx_fifo_errors": "TX FIFO Errors", "tx_carrier_errors": "TX Carrier Errors",
+            "tx_collisions": "TX Collisions", "tx_compressed": "TX Compressed Packets",
+            "link_quality": "Link Quality", "signal": "Signal", "noise": "Noise",
+        }
+        return f"{interface.lower()} — {metric_labels[metric.lower()]}"
     labels = {
         "wlanMac": "Wireless MAC", "wireless_mac": "Wireless MAC",
         "ethernet_mac": "Ethernet MAC", "lan_mac": "Ethernet MAC",
         "mac": "MAC address", "essid": "SSID", "snr": "SNR", "ccq": "CCQ",
-        "ip_address": "IP address", "lan_ip": "Ethernet IP address",
+        "ip_address": "IP Address", "lan_ip": "Ethernet IP Address",
+        "lanIpAddress": "LAN IP Address", "wlanIpAddress": "Wireless IP Address",
+        "uptime": "Device Uptime (raw)", "mac": "Device MAC Address",
+        "apMac": "Access Point MAC Address", "apmac": "Access Point MAC Address",
+        "deviceId": "Device ID", "device_id": "Device ID",
+        "deviceName": "Device Name", "device_name": "Device Name",
+        "deviceIp": "Device IP Address", "device_ip": "Device IP Address",
+        "freq": "Radio Frequency", "Freq": "Radio Frequency", "cfgCrc": "Configuration Checksum",
+        "cfg_crc": "Configuration Checksum",
         "wlan_ip": "Wireless IP address", "wlanTxRate": "Wireless TX rate",
         "wlanRxRate": "Wireless RX rate", "wlanConnections": "Wireless connections",
         "connected_station_count": "Connected wireless stations",
@@ -132,10 +162,12 @@ def _metadata(key):
         return OPTIONAL_SENSORS[key]
     if key.endswith("_bytes") or key.endswith("_bytes_total"):
         return (_friendly_name(key), "B")
-    if key.endswith(("_packets", "_dropped")):
+    if key.endswith(("_packets", "_dropped", "_multicast", "_compressed")):
         return (_friendly_name(key), "packets")
-    if key.endswith("_errors") or "_err_" in key:
+    if key.endswith(("_errors", "_fifo_errors", "_frame_errors", "_carrier_errors")) or "_err_" in key:
         return (_friendly_name(key), "errors")
+    if key.endswith("_collisions"):
+        return (_friendly_name(key), "collisions")
     if key.endswith("_signal"):
         return (_friendly_name(key), "dBm")
     if key.endswith("_ccq"):
@@ -170,7 +202,26 @@ async def async_setup_entry(hass, entry, async_add_entities):
             key for key, value in data.items()
             if value is not None and value != "" and key not in {"cpu_total_ticks", "cpu_idle_ticks"}
         }
-        new_keys = candidates - known_keys
+        # The raw mca-status field and its normalized alias often contain the
+        # same value. Prefer the normalized entity rather than exposing both.
+        aliases = {
+            "uptime": "uptime_seconds",
+            "lanIpAddress": "lan_ip",
+            "deviceIp": "ip_address",
+            "device_ip": "ip_address",
+            "wlanIpAddress": "wlan_ip",
+            "wlanFrequency": "frequency",
+            "wlanESSID": "essid",
+            "wlanSignal": "signal",
+            "wlanNoise": "noise",
+            "wlanCCQ": "ccq",
+            "wlanSNR": "snr",
+        }
+        redundant = {
+            source for source, target in aliases.items()
+            if target in data and source in data and str(data[source]) == str(data[target])
+        }
+        new_keys = candidates - known_keys - redundant
         if not new_keys:
             return
         batch = []
