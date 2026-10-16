@@ -151,7 +151,7 @@ def _metadata(key):
 
 def _device_type(key):
     normalized = key.lower().replace("-", "_")
-    if key in WIRELESS_KEYS or "wlan" in normalized or "wireless" in normalized or key.startswith("station_"):
+    if key in WIRELESS_KEYS or "wlan" in normalized or "wireless" in normalized or normalized.startswith("ath") or key.startswith("station_"):
         return "wireless"
     if key in ETHERNET_KEYS or "ethernet" in normalized or normalized.startswith("lan") or normalized.startswith("eth"):
         return "ethernet"
