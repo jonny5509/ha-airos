@@ -33,9 +33,27 @@ OPTIONAL_SENSORS = {
     "wireless_tx_bytes": ("Wireless sent", "B"),
 }
 
+# airOS firmware and board revisions use several spellings for model metadata.
+_MODEL_KEYS = ("platform", "model", "board.name", "boardName", "deviceModel")
+
 
 def _friendly_name(key):
     return key.replace("_", " ").replace("-", " ").strip().title()
+
+
+def _device_model(entry, data):
+    """Return the hardware model reported by airOS, if available."""
+    candidates = [entry.data.get("platform")]
+    candidates.extend(data.get(key) for key in _MODEL_KEYS)
+    for candidate in candidates:
+        if not isinstance(candidate, str) or not candidate.strip():
+            continue
+        model = candidate.strip()
+        # Normalize the common platform identifier to a human-readable label.
+        if model.casefold() == "nanostation5":
+            return "NanoStation 5"
+        return model
+    return None
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -75,12 +93,15 @@ class AiRXS2Sensor(SensorEntity):
 
     @property
     def device_info(self):
+        data = self.coordinator.data or {}
+        model = _device_model(self._entry, data)
         info = {
             "identifiers": {(DOMAIN, self._entry.data["host"])},
-            "name": self._entry.data["name"],
+            "name": model or self._entry.data["name"],
             "manufacturer": "Ubiquiti",
-            "model": self._entry.data.get("platform", "airOS XS2"),
         }
+        if model:
+            info["model"] = model
         if self._entry.data.get("firmware_version"):
             info["sw_version"] = self._entry.data["firmware_version"]
         if self._entry.data.get("device_id"):
