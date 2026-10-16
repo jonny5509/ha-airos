@@ -13,6 +13,10 @@ BASE_SENSORS = {
 
 OPTIONAL_SENSORS = {
     "essid": ("SSID", None),
+    "platform": ("Platform", None),
+    "firmwareVersion": ("Firmware version", None),
+    "deviceId": ("Device ID", None),
+    "deviceIp": ("Device IP", None),
     "frequency": ("Frequency", "MHz"),
     "wlanMac": ("Wireless MAC", None),
     "mac": ("MAC address", None),
@@ -68,14 +72,33 @@ class AiRXS2Sensor(SensorEntity):
         self.coordinator = coordinator
         self.key = key
         self._entry = entry
-        self._attr_name = f"{entry.data['name']} {label or key}"
+        self._attr_name = label or _friendly_name(key)
         self._attr_unique_id = f"{entry.data['host']}_{key}"
         if unit:
             self._attr_native_unit_of_measurement = unit
 
     @property
     def device_info(self):
+        interface = self._interface_for_key(self.key)
+        if interface:
+            return self.coordinator.get_interface_device_info(self._entry, interface)
         return self.coordinator.get_device_info(self._entry)
+
+    @staticmethod
+    def _interface_for_key(key):
+        """Group network/radio entities under the matching child device."""
+        if key in {
+            "signal", "noise", "ccq", "snr", "wlanTxRate", "wlanRxRate",
+            "essid", "frequency", "wlanMac", "wireless_mac",
+            "wireless_rx_bytes", "wireless_tx_bytes",
+        } or key.lower().startswith(("wlan", "wireless", "ath")):
+            return "wlan"
+        if key in {
+            "ip_address", "mac", "ethernet_mac", "ethMac",
+            "ethernet_rx_bytes", "ethernet_tx_bytes", "deviceIp",
+        } or key.lower().startswith(("ethernet", "eth")):
+            return "lan"
+        return None
 
     @property
     def native_value(self):
