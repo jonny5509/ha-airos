@@ -75,12 +75,17 @@ class AiRXS2Sensor(SensorEntity):
 
     @property
     def device_info(self):
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._entry.data["host"])},
-            name=self._entry.data["name"],
-            manufacturer="Ubiquiti",
-            model="airOS XS2",
-        )
+        info = {
+            "identifiers": {(DOMAIN, self._entry.data["host"])},
+            "name": self._entry.data["name"],
+            "manufacturer": "Ubiquiti",
+            "model": self._entry.data.get("platform", "airOS XS2"),
+        }
+        if self._entry.data.get("firmware_version"):
+            info["sw_version"] = self._entry.data["firmware_version"]
+        if self._entry.data.get("device_id"):
+            info["connections"] = {("mac", self._entry.data["device_id"])}
+        return DeviceInfo(**info)
 
     @property
     def native_value(self):
