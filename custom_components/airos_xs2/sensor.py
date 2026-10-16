@@ -136,10 +136,12 @@ def _friendly_name(key):
         "device_id": "Device ID", "deviceId": "Device ID",
         "device_name": "Device Name", "deviceName": "Device Name",
         "device_ip": "Device IP Address", "deviceIp": "Device IP Address",
+        "deviceIP": "Device IP Address",
         "firmware_version": "Firmware Version", "firmwareVersion": "Firmware Version",
         "config_checksum": "Configuration Checksum", "cfgCrc": "Configuration Checksum",
         "cfg_crc": "Configuration Checksum", "cfgCRC": "Configuration Checksum",
         "freq": "Radio Frequency", "Freq": "Radio Frequency",
+        "frequency": "Radio Frequency",
         "ip_address": "IP Address", "lan_ip": "Ethernet IP Address",
         "lanIpAddress": "LAN IP Address", "wlanIpAddress": "Wireless IP Address",
         "uptime": "Device Uptime (raw)", "essid": "SSID",
@@ -216,6 +218,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
         aliases = {
             "uptime": "uptime_seconds",
             "lanIpAddress": "lan_ip",
+            "lanRxBytes": "ethernet_rx_bytes",
+            "lanTxBytes": "ethernet_tx_bytes",
+            "wlanRxBytes": "wireless_rx_bytes",
+            "wlanTxBytes": "wireless_tx_bytes",
             "deviceIp": "ip_address",
             "device_ip": "ip_address",
             "wlanIpAddress": "wlan_ip",
@@ -232,9 +238,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
             "cfgCrc": "config_checksum", "cfgCRC": "config_checksum",
             "Freq": "frequency", "freq": "frequency",
         }
+        # Canonical keys always win when both forms are present. The raw
+        # firmware value may differ only because the normalized value is
+        # parsed (for example, "5745 MHz" becomes the integer 5745).
         redundant = {
             source for source, target in aliases.items()
-            if target in data and source in data and str(data[source]) == str(data[target])
+            if target in data and source in data
         }
         new_keys = candidates - known_keys - redundant
         if not new_keys:
@@ -266,8 +275,9 @@ class AiRXS2Sensor(SensorEntity):
         if unit:
             self._attr_native_unit_of_measurement = unit
         if key in {
-            "cpu_model", "hostname", "kernel_version", "mac", "ap_mac", "device_id", "device_name", "firmware_version", "config_checksum", "ethernet_mac",
-            "lan_mac", "wlanMac", "wireless_mac", "platform",
+            "cpu_model", "hostname", "kernel_version", "mac", "ap_mac",
+            "device_id", "device_name", "firmware_version", "config_checksum",
+            "ethernet_mac", "lan_mac", "wlanMac", "wireless_mac", "platform",
         }:
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
         if key == "uptime_seconds":
