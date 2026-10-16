@@ -4,43 +4,43 @@ from .const import DOMAIN
 import re
 
 BASE_SENSORS = {
-    "signal": ("Wireless signal", "dBm"),
-    "noise": ("Wireless noise", "dBm"),
+    "signal": ("Wireless Signal", "dBm"),
+    "noise": ("Wireless Noise", "dBm"),
     "ccq": ("Wireless CCQ", "%"),
     "snr": ("Wireless SNR", "dB"),
-    "wlanTxRate": ("Wireless TX rate", "Mbps"),
-    "wlanRxRate": ("Wireless RX rate", "Mbps"),
+    "wlanTxRate": ("Wireless Transmit Rate", "Mbps"),
+    "wlanRxRate": ("Wireless Receive Rate", "Mbps"),
 }
 
 OPTIONAL_SENSORS = {
-    "essid": ("Wireless SSID", None),
-    "frequency": ("Wireless frequency", "MHz"),
-    "wlanMac": ("Wireless MAC address", None),
-    "ethernet_mac": ("Ethernet MAC address", None),
-    "wireless_mac": ("Wireless MAC address", None),
-    "mac": ("Device MAC address", None),
-    "mode": ("Wireless mode", None),
+    "essid": ("Wireless Network Name (SSID)", None),
+    "frequency": ("Wireless Frequency", "MHz"),
+    "wlanMac": ("Wireless MAC Address", None),
+    "ethernet_mac": ("Ethernet MAC Address", None),
+    "wireless_mac": ("Wireless MAC Address", None),
+    "mac": ("Device MAC Address", None),
+    "mode": ("Wireless Mode", None),
     "hostname": ("Hostname", None),
     "uptime_seconds": ("Uptime", "s"),
-    "ip_address": ("Device IP address", None),
-    "cpu_model": ("CPU model", None),
-    "load_1m": ("CPU load (1 min)", None),
-    "load_5m": ("CPU load (5 min)", None),
-    "load_15m": ("CPU load (15 min)", None),
-    "mem_total_bytes": ("Memory total", "B"),
-    "mem_free_bytes": ("Memory free", "B"),
-    "mem_available_bytes": ("Memory available", "B"),
-    "ethernet_rx_bytes": ("Ethernet received", "B"),
-    "ethernet_tx_bytes": ("Ethernet sent", "B"),
-    "wireless_rx_bytes": ("Wireless received", "B"),
-    "wireless_tx_bytes": ("Wireless sent", "B"),
+    "ip_address": ("Device IP Address", None),
+    "cpu_model": ("CPU Model", None),
+    "load_1m": ("CPU Load (1 Minute)", None),
+    "load_5m": ("CPU Load (5 Minutes)", None),
+    "load_15m": ("CPU Load (15 Minutes)", None),
+    "mem_total_bytes": ("Total Memory", "B"),
+    "mem_free_bytes": ("Free Memory", "B"),
+    "mem_available_bytes": ("Available Memory", "B"),
+    "ethernet_rx_bytes": ("Ethernet Bytes Received", "B"),
+    "ethernet_tx_bytes": ("Ethernet Bytes Sent", "B"),
+    "wireless_rx_bytes": ("Wireless Bytes Received", "B"),
+    "wireless_tx_bytes": ("Wireless Bytes Sent", "B"),
 }
 
 DEVICE_METADATA = {
     "deviceId": ("Device ID", None),
-    "firmwareVersion": ("Firmware version", None),
+    "firmwareVersion": ("Firmware Version", None),
     "platform": ("Platform", None),
-    "deviceIp": ("Device IP address", None),
+    "deviceIp": ("Device IP Address", None),
 }
 
 
@@ -62,10 +62,62 @@ def _parse_device_name(raw_name):
     return raw_name, {}
 
 
+SENSOR_NAME_OVERRIDES = {
+    "signal": "Wireless Signal",
+    "noise": "Wireless Noise",
+    "ccq": "Wireless CCQ",
+    "snr": "Wireless SNR",
+    "wlanTxRate": "Wireless Transmit Rate",
+    "wlanRxRate": "Wireless Receive Rate",
+    "wlanMac": "Wireless MAC Address",
+    "wireless_mac": "Wireless MAC Address",
+    "ethernet_mac": "Ethernet MAC Address",
+    "mac": "Device MAC Address",
+    "essid": "Wireless Network Name (SSID)",
+    "frequency": "Wireless Frequency",
+    "mode": "Wireless Mode",
+    "hostname": "Hostname",
+    "uptime_seconds": "Uptime",
+    "ip_address": "Device IP Address",
+    "cpu_model": "CPU Model",
+    "load_1m": "CPU Load (1 Minute)",
+    "load_5m": "CPU Load (5 Minutes)",
+    "load_15m": "CPU Load (15 Minutes)",
+    "mem_total_bytes": "Total Memory",
+    "mem_free_bytes": "Free Memory",
+    "mem_available_bytes": "Available Memory",
+    "ethernet_rx_bytes": "Ethernet Bytes Received",
+    "ethernet_tx_bytes": "Ethernet Bytes Sent",
+    "wireless_rx_bytes": "Wireless Bytes Received",
+    "wireless_tx_bytes": "Wireless Bytes Sent",
+    "deviceId": "Device ID",
+    "firmwareVersion": "Firmware Version",
+    "platform": "Platform",
+    "deviceIp": "Device IP Address",
+}
+
+
 def _friendly_name(key):
-    """Create readable sensor names and use Ethernet instead of LAN."""
-    name = key.replace("_", " ").replace("-", " ").strip().title()
-    return re.sub(r"\\bLan\\b", "Ethernet", name)
+    """Return a readable, consistently capitalized name for a sensor key."""
+    if key in SENSOR_NAME_OVERRIDES:
+        return SENSOR_NAME_OVERRIDES[key]
+
+    # Convert camelCase and separators into words before applying protocol terms.
+    name = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", key)
+    name = re.sub(r"[_-]+", " ", name).strip()
+    words = name.split()
+    normalized = []
+    for word in words:
+        lower = word.lower()
+        if lower in {"wlan", "wireless", "wifi"}:
+            normalized.append("Wireless")
+        elif lower in {"lan", "ethernet", "eth"}:
+            normalized.append("Ethernet")
+        elif lower in {"mac", "ip", "cpu", "ccq", "snr", "ssid", "tx", "rx", "mhz", "dbm", "id", "url", "ram"}:
+            normalized.append(lower.upper())
+        else:
+            normalized.append(lower.capitalize())
+    return " ".join(normalized) or "Unknown"
 
 
 def _device_kind(key):
