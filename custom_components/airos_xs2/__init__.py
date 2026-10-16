@@ -7,33 +7,39 @@ from .coordinator import AiRXS2Coordinator
 
 PLATFORMS = ["sensor", "switch"]
 
+# Keep registry migration classification aligned with the entities' DeviceInfo
+# grouping in sensor.py. These sets include normalized keys that may not carry
+# an obvious "wlan" or "ethernet" prefix.
 WIRELESS_KEYS = {
     "signal", "noise", "ccq", "snr", "wlanTxRate", "wlanRxRate",
-    "essid", "frequency", "wlanMac", "mode",
-    "wireless_rx_bytes", "wireless_tx_bytes",
+    "essid", "frequency", "wlanMac", "mode", "wireless_mac", "wlan_ip",
+    "wireless_rx_bytes", "wireless_tx_bytes", "channel_width", "txpower",
+    "tx_power", "chain0_signal", "chain1_signal", "rx_rate", "tx_rate",
     "wlanConnections", "connected_station_count", "station_signal_min",
-    "station_signal_max", "station_ccq_average", "stations_rx_bytes",
-    "stations_tx_bytes", "stations_rx_pps", "stations_tx_pps",
-    "wlanTxLatency", "wlanPollingQuality", "wlanPollingCapacity",
-    "ackTimeout", "distance", "wlanRxPackets", "wlanTxPackets",
-    "wlanRxErrors", "wlanTxErrors", "wlanRxErrNwid", "wlanRxErrCrypt",
-    "wlanRxErrFrag", "wlanRxErrRetries", "wlanRxErrBmiss", "wlanRxErrOther",
+    "station_signal_max", "station_signal_average", "station_ccq_average",
+    "stations_rx_bytes", "stations_tx_bytes", "stations_rx_pps", "stations_tx_pps",
+    "stations_tx_rate_mbps", "stations_rx_rate_mbps", "wlanTxLatency",
+    "wlanPollingQuality", "wlanPollingCapacity", "ackTimeout", "distance",
+    "wlanRxPackets", "wlanTxPackets", "wlanRxErrors", "wlanTxErrors",
+    "wlanRxErrNwid", "wlanRxErrCrypt", "wlanRxErrFrag", "wlanRxErrRetries",
+    "wlanRxErrBmiss", "wlanRxErrOther", "wireless_link_quality",
+    "wireless_link_quality_max", "wireless_rate_mbps",
 }
 ETHERNET_KEYS = {
     "ethernet_rx_bytes", "ethernet_tx_bytes", "ethernet_mac", "lan_ip", "lan_mac",
     "lanSpeed", "lanPlugged", "lanRxPackets", "lanTxPackets",
-    "lanRxErrors", "lanTxErrors",
+    "lanRxErrors", "lanTxErrors", "ethernet_rx_packets", "ethernet_tx_packets",
+    "ethernet_rx_errors", "ethernet_tx_errors", "ethernet_rx_dropped",
+    "ethernet_tx_dropped", "ethernet_link_speed_mbps",
 }
 
 
 def _device_type_for_key(key: str) -> str:
-    """Classify interface entities by key, including future telemetry."""
+    """Classify entities consistently with sensor entities' device grouping."""
     normalized = key.lower().replace("-", "_")
-    # Interface counters are named like br0_rx_bytes, br0:0_link_up,
-    # eth0_tx_packets, and ath0_signal.
     if (
         key in WIRELESS_KEYS or "wlan" in normalized or "wireless" in normalized
-        or normalized.startswith("ath")
+        or normalized.startswith("ath") or key.startswith("station_")
     ):
         return "wireless"
     if (
