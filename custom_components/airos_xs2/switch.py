@@ -3,9 +3,11 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
 
+
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([AiRXS2RebootSwitch(coordinator, entry)])
+
 
 class AiRXS2RebootSwitch(SwitchEntity):
     def __init__(self, coordinator, entry):
@@ -16,12 +18,17 @@ class AiRXS2RebootSwitch(SwitchEntity):
 
     @property
     def device_info(self):
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._entry.data["host"])},
-            name=self._entry.data["name"],
-            manufacturer="Ubiquiti",
-            model="airOS XS2",
-        )
+        info = {
+            "identifiers": {(DOMAIN, self._entry.data["host"])},
+            "name": self._entry.data["name"],
+            "manufacturer": "Ubiquiti",
+            "model": self._entry.data.get("platform", "airOS XS2"),
+        }
+        if self._entry.data.get("firmware_version"):
+            info["sw_version"] = self._entry.data["firmware_version"]
+        if self._entry.data.get("device_id"):
+            info["connections"] = {("mac", self._entry.data["device_id"])}
+        return DeviceInfo(**info)
 
     async def async_turn_on(self, **kwargs):
         async with asyncssh.connect(
