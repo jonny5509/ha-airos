@@ -29,7 +29,9 @@ def _device_type_for_key(key: str) -> str:
     return "system"
 
 
-async def _ensure_device_hierarchy(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def _ensure_device_hierarchy(
+    hass: HomeAssistant, entry: ConfigEntry, model: str
+) -> None:
     """Create parent/interface devices and migrate existing entity registry links."""
     host = entry.data["host"]
     name = entry.data["name"]
@@ -41,14 +43,14 @@ async def _ensure_device_hierarchy(hass: HomeAssistant, entry: ConfigEntry) -> N
         identifiers={(DOMAIN, host)},
         name=name,
         manufacturer="Ubiquiti",
-        model="airOS XS2",
+        model=model,
     )
     wireless = device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, f"{host}_wireless")},
         name=f"{name} Wireless",
         manufacturer="Ubiquiti",
-        model="airOS XS2 Wireless Interface",
+        model=f"{model} Wireless Interface",
         via_device_id=system.id,
     )
     ethernet = device_registry.async_get_or_create(
@@ -56,7 +58,7 @@ async def _ensure_device_hierarchy(hass: HomeAssistant, entry: ConfigEntry) -> N
         identifiers={(DOMAIN, f"{host}_ethernet")},
         name=f"{name} Ethernet",
         manufacturer="Ubiquiti",
-        model="airOS XS2 Ethernet Interface",
+        model=f"{model} Ethernet Interface",
         via_device_id=system.id,
     )
 
@@ -88,7 +90,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     await coordinator.async_config_entry_first_refresh()
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
-    await _ensure_device_hierarchy(hass, entry)
+    model = str((coordinator.data or {}).get("platform") or "airOS")
+    await _ensure_device_hierarchy(hass, entry, model)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
