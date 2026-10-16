@@ -224,7 +224,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                     data.setdefault("wireless_mac", macs[1])
         elif name == "free":
             for line in output.splitlines():
-                match = re.match(r"^Mem:\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)", line)
+                match = re.match(r"^Mem:\s+(\d+)\s+(\d+)\s+(\d+)", line)
                 if match:
                     data.setdefault("mem_total_bytes", int(match.group(1)) * 1024)
                     data.setdefault("mem_used_bytes", int(match.group(2)) * 1024)
