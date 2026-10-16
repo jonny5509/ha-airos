@@ -13,6 +13,16 @@ Home Assistant custom integration for legacy Ubiquiti airOS XS2 devices (NanoSta
 - Config Flow (UI install)
 - HACS compatible
 
+## Home Assistant device layout
+
+The integration organizes entities into a parent device and interface child devices, following the system/device/interface layout used by [ha-edgeos](https://github.com/jonny550993/ha-edgeos):
+
+- **System device** — general system telemetry, uptime, memory, CPU/load, host/network identity, and the reboot switch.
+- **Wireless child device** — signal, noise, CCQ, SNR, SSID, frequency, wireless rates, and wireless traffic counters.
+- **Ethernet child device** — Ethernet traffic counters and Ethernet MAC when the device exposes them.
+
+The wireless and Ethernet devices are linked to the system device in Home Assistant. Unsupported telemetry remains omitted, and all extra `mca-status` fields continue to be exposed as sensors. Existing sensor and switch unique IDs are preserved to help retain entity registry customizations during the layout change.
+
 ---
 
 ## Installation (Manual)
