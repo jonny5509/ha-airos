@@ -54,7 +54,6 @@ OPTIONAL_SENSORS = {
     "stations_tx_bytes": ("Stations sent", "B"),
     "stations_rx_pps": ("Stations RX packet rate", "packet/s"),
     "stations_tx_pps": ("Stations TX packet rate", "packet/s"),
-    "mem_used_bytes": ("Memory used", "B"),
     "wlanTxLatency": ("Wireless TX latency", "ms"),
     "wlanPollingQuality": ("Wireless polling quality", "%"),
     "wlanPollingCapacity": ("Wireless polling capacity", "%"),
