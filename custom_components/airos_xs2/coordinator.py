@@ -4,6 +4,8 @@ import re
 from datetime import timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
+from homeassistant.helpers.entity import DeviceInfo
 from .const import DEFAULT_SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,6 +39,49 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             name=f"airos_xs2_{name}",
             update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
         )
+
+
+    def get_device_info(self, entry) -> DeviceInfo:
+        """Build Home Assistant device registry details from reported data."""
+        data = self.data or {}
+
+        def first_value(*keys):
+            for key in keys:
+                value = data.get(key)
+                if value not in (None, ""):
+                    return str(value)
+            return None
+
+        model = first_value(
+            "board.name", "device_model", "devmodel", "model", "board", "platform"
+        ) or "airOS device"
+        sw_version = first_value(
+            "fwversion", "firmware", "fw_version", "version", "build_version"
+        )
+        hw_version = first_value(
+            "hw_version", "hwrev", "boardrev", "board_revision", "board.rev"
+        )
+        serial_number = first_value("serial_number", "serial", "serialno")
+        mac = first_value(
+            "wlanMac", "wireless_mac", "mac", "ethernet_mac", "ethMac"
+        )
+
+        info = {
+            "identifiers": {(DOMAIN, entry.data["host"])},
+            "name": entry.data["name"],
+            "manufacturer": "Ubiquiti",
+            "model": model,
+            "configuration_url": f"http://{self.host}",
+        }
+        if sw_version:
+            info["sw_version"] = sw_version
+        if hw_version:
+            info["hw_version"] = hw_version
+        if serial_number:
+            info["serial_number"] = serial_number
+        if mac:
+            info["connections"] = {(CONNECTION_NETWORK_MAC, mac)}
+        return DeviceInfo(**info)
 
     async def _run_command(self, conn, command):
         """Run a read-only command without relying on completed-result attributes."""
