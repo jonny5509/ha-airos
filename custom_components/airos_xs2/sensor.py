@@ -75,7 +75,26 @@ class AiRXS2Sensor(SensorEntity):
 
     @property
     def device_info(self):
+        interface = self._interface_for_key(self.key)
+        if interface:
+            return self.coordinator.get_interface_device_info(self._entry, interface)
         return self.coordinator.get_device_info(self._entry)
+
+    @staticmethod
+    def _interface_for_key(key):
+        """Group network/radio entities under the matching child device."""
+        if key in {
+            "signal", "noise", "ccq", "snr", "wlanTxRate", "wlanRxRate",
+            "essid", "frequency", "wlanMac", "wireless_mac",
+            "wireless_rx_bytes", "wireless_tx_bytes",
+        } or key.lower().startswith(("wlan", "wireless", "ath")):
+            return "wlan"
+        if key in {
+            "ip_address", "mac", "ethernet_mac", "ethMac",
+            "ethernet_rx_bytes", "ethernet_tx_bytes", "deviceIp",
+        } or key.lower().startswith(("ethernet", "eth")):
+            return "lan"
+        return None
 
     @property
     def native_value(self):
