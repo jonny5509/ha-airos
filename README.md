@@ -1,17 +1,16 @@
 # airOS XS2 (SSH)
 
-Home Assistant custom integration for legacy Ubiquiti airOS XS2 devices (NanoStation2, PowerStation2, etc).
+Home Assistant custom integration for legacy Ubiquiti airOS XS2 devices, including the **Ubiquiti NanoStation 5** running `XS5.ar2313.v4.0.1.4978.111219.2126`.
 
 ## Features
 
 - SSH polling of `mca-status`
 - Signal, Noise, CCQ, SNR
 - TX/RX rate monitoring
-- Exposes all additional `mca-status` key/value fields as sensors
+- Exposes available `mca-status` fields as sensors, with normalized names for device identity, firmware, frequency, and uptime
 - Best-effort uptime, CPU utilization/load, memory and swap, kernel/CPU identity, IP/MAC, wireless-tools telemetry, and interface byte/packet/error/drop counters from BusyBox/procfs (unsupported probes are skipped)
 - Dynamically discovers sensor entities when new firmware fields or wireless clients appear after startup
 - Aggregated wireless-client signal, CCQ, rate and traffic metrics when `wstalist` exposes them
-- Exposes all additional `mca-status` key/value fields as sensors
 - Reboot switch
 - Config Flow (UI install)
 - HACS compatible
@@ -68,8 +67,11 @@ errors reported after the integration loads.
 
 ## Compatibility
 
-- airOS XS2 firmware 4.x
+- Target device: Ubiquiti NanoStation 5, firmware `XS5.ar2313.v4.0.1.4978.111219.2126`
+- Other airOS XS2-family devices may work, but telemetry depends on model and firmware
 - Uses legacy SSH algorithms required by older firmware
+- Temperature and voltage sensors are only available if the device firmware exposes those measurements
+- Optional BusyBox/procfs commands are best-effort; unsupported commands are skipped
 
 ---
 
