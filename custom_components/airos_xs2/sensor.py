@@ -35,7 +35,6 @@ OPTIONAL_SENSORS = {
     "ethernet_mac": ("Ethernet MAC", None),
 }
 
-
 WIRELESS_KEYS = {
     *BASE_SENSORS,
     "essid",
@@ -69,9 +68,15 @@ def _friendly_name(key):
 
 
 def _device_type(key):
-    if key in WIRELESS_KEYS:
+    """Classify WLAN and LAN telemetry consistently, including unknown keys."""
+    normalized = key.lower().replace("-", "_")
+    if key in WIRELESS_KEYS or "wlan" in normalized or "wireless" in normalized:
         return "wireless"
-    if key in ETHERNET_KEYS:
+    if (
+        key in ETHERNET_KEYS
+        or "ethernet" in normalized
+        or normalized.startswith("lan")
+    ):
         return "ethernet"
     return "system"
 
@@ -142,8 +147,6 @@ class AiRXS2Sensor(SensorEntity):
             self._attr_icon = "mdi:speedometer"
         elif key == "frequency":
             self._attr_icon = "mdi:access-point"
-        elif key == "uptime_seconds":
-            self._attr_icon = "mdi:timer-outline"
 
     @property
     def device_info(self):
