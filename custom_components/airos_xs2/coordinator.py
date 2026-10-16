@@ -41,19 +41,23 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 encryption_algs=["aes128-cbc"],
                 server_host_key_algs=["ssh-rsa"],
             ) as conn:
-                # create_process() returns a process object. Awaiting it waits for
-                # completion and returns SSHCompletedProcess, which has no streams.
-                proc = conn.create_process("mca-status")
-
-                stdout = await proc.stdout.read()
-                stderr = await proc.stderr.read()
-                result = await proc.wait()
+                # create_process() returns an async context manager. Enter it to
+                # obtain the SSHClientProcess and its stdout/stderr streams.
+                async with conn.create_process("mca-status") as proc:
+                    stdout = await proc.stdout.read()
+                    stderr = await proc.stderr.read()
+                    result = await proc.wait()
 
                 out_text = _to_text(stdout)
                 err_text = _to_text(stderr)
 
-                # Some firmware prints to stderr even on success; prefer stdout if it has key=value pairs
-                output = out_text if "=" in out_text else (err_text if "=" in err_text else out_text)
+                # Some firmware prints to stderr even on success; prefer stdout
+                # when it contains key=value pairs.
+                output = (
+                    out_text
+                    if "=" in out_text
+                    else (err_text if "=" in err_text else out_text)
+                )
 
                 if result.exit_status not in (0, None) and not output.strip():
                     raise UpdateFailed(
@@ -61,7 +65,9 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                     )
 
                 if "=" not in output:
-                    raise UpdateFailed(f"mca-status returned no key=value output. stderr={err_text}")
+                    raise UpdateFailed(
+                        f"mca-status returned no key=value output. stderr={err_text}"
+                    )
 
                 return self._parse_output(output)
 
