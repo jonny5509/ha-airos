@@ -1,4 +1,4 @@
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.const import EntityCategory
 from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
