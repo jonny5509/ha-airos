@@ -8,16 +8,12 @@ from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
 
 BASE_SENSORS = {
-    "signal": ("Signal", "dBm"),
-    "noise": ("Noise", "dBm"),
-    "ccq": ("CCQ", "%"),
-    "snr": ("SNR", "dB"),
+    "signal": ("Signal", "dBm"), "noise": ("Noise", "dBm"),
+    "ccq": ("CCQ", "%"), "snr": ("SNR", "dB"),
     "wlanTxRate": ("Wireless TX rate", "Mbps"),
     "wlanRxRate": ("Wireless RX rate", "Mbps"),
 }
 
-# Known fields get meaningful labels and units. Unknown mca-status fields are
-# still exposed automatically, so this table is intentionally extensible.
 OPTIONAL_SENSORS = {
     "essid": ("SSID", None), "frequency": ("Frequency", "MHz"),
     "wlanMac": ("Wireless MAC", None), "wireless_mac": ("Wireless MAC", None),
@@ -130,6 +126,29 @@ def _friendly_name(key):
     return " ".join(acronyms.get(word.lower(), word.capitalize()) for word in words)
 
 
+def _metadata(key):
+    """Infer safe units for per-interface and per-station dynamically found keys."""
+    if key in OPTIONAL_SENSORS:
+        return OPTIONAL_SENSORS[key]
+    if key.endswith("_bytes") or key.endswith("_bytes_total"):
+        return (_friendly_name(key), "B")
+    if key.endswith(("_packets", "_dropped")):
+        return (_friendly_name(key), "packets")
+    if key.endswith("_errors") or "_err_" in key:
+        return (_friendly_name(key), "errors")
+    if key.endswith("_signal"):
+        return (_friendly_name(key), "dBm")
+    if key.endswith("_ccq"):
+        return (_friendly_name(key), "%")
+    if key.endswith(("_rate_mbps", "_speed_mbps")):
+        return (_friendly_name(key), "Mbps")
+    if key.endswith("_uptime_seconds") or key == "uptime_seconds":
+        return (_friendly_name(key), "s")
+    if key.endswith("_link_up"):
+        return (_friendly_name(key), None)
+    return (_friendly_name(key), None)
+
+
 def _device_type(key):
     normalized = key.lower().replace("-", "_")
     if key in WIRELESS_KEYS or "wlan" in normalized or "wireless" in normalized or key.startswith("station_"):
@@ -140,33 +159,29 @@ def _device_type(key):
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
+    """Set up baseline sensors and dynamically register newly observed telemetry."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
     known_keys = set()
-    entities = {}
 
     def add_new_sensors():
-        """Create an entity the first time a telemetry key is observed."""
         data = coordinator.data or {}
+        # Hide internal CPU counters; expose the derived utilization percentage.
         candidates = set(BASE_SENSORS) | {
-            key for key, value in data.items() if value is not None and value != ""
+            key for key, value in data.items()
+            if value is not None and value != "" and key not in {"cpu_total_ticks", "cpu_idle_ticks"}
         }
         new_keys = candidates - known_keys
         if not new_keys:
             return
         batch = []
         for key in sorted(new_keys):
-            label, unit = OPTIONAL_SENSORS.get(key, (None, None))
-            if key in BASE_SENSORS:
-                label, unit = BASE_SENSORS[key]
-            entity = AiRXS2Sensor(coordinator, entry, key, unit, label or _friendly_name(key))
-            entities[key] = entity
+            label, unit = _metadata(key)
+            entity = AiRXS2Sensor(coordinator, entry, key, unit, label)
             batch.append(entity)
             known_keys.add(key)
         async_add_entities(batch)
 
     add_new_sensors()
-    # A key absent at first boot can appear later (e.g. a station connects).
-    # Coordinator listeners run after each successful data refresh.
     coordinator.async_add_listener(add_new_sensors)
 
 
@@ -192,6 +207,13 @@ class AiRXS2Sensor(SensorEntity):
         if key == "uptime_seconds":
             self._attr_icon = "mdi:timer-outline"
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        elif key.endswith("_bytes") or key in {
+            "ethernet_rx_bytes", "wireless_rx_bytes", "ethernet_tx_bytes", "wireless_tx_bytes",
+        }:
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+            self._attr_icon = "mdi:download-network" if "_rx_" in key else "mdi:upload-network"
+        elif key.endswith(("_packets", "_errors", "_dropped", "_collisions")):
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         elif key in {
             "mem_total_bytes", "mem_free_bytes", "mem_available_bytes", "mem_used_bytes",
             "mem_buffers_bytes", "mem_cached_bytes", "swap_total_bytes", "swap_free_bytes",
@@ -199,26 +221,13 @@ class AiRXS2Sensor(SensorEntity):
         }:
             self._attr_icon = "mdi:memory"
             self._attr_state_class = SensorStateClass.MEASUREMENT
-        elif key.startswith("load_"):
-            self._attr_icon = "mdi:chart-line"
+        elif key.startswith("load_") or key in {"cpu_utilization", "signal", "noise", "snr", "ccq", "frequency"}:
             self._attr_state_class = SensorStateClass.MEASUREMENT
-        elif key in {
-            "ethernet_rx_bytes", "wireless_rx_bytes", "ethernet_tx_bytes",
-            "wireless_tx_bytes",
-        }:
-            self._attr_icon = "mdi:download-network" if "_rx_" in key else "mdi:upload-network"
-            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
-        elif key in {"signal", "noise", "chain0_signal", "chain1_signal"} or key.endswith("_signal"):
+        elif key.endswith("_signal"):
             self._attr_icon = "mdi:signal"
             self._attr_state_class = SensorStateClass.MEASUREMENT
-        elif key == "snr":
-            self._attr_icon = "mdi:signal-distance-variant"
-            self._attr_state_class = SensorStateClass.MEASUREMENT
-        elif key == "ccq" or key.endswith("_ccq"):
+        elif key.endswith("_ccq"):
             self._attr_icon = "mdi:chart-donut"
-            self._attr_state_class = SensorStateClass.MEASUREMENT
-        elif "rate" in key.lower() and ("wlan" in key.lower() or "station" in key.lower()):
-            self._attr_icon = "mdi:speedometer"
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
@@ -227,9 +236,7 @@ class AiRXS2Sensor(SensorEntity):
 
     @property
     def native_value(self):
-        value = (self.coordinator.data or {}).get(self.key)
-        # Sensor entities should not publish Python booleans as numeric values.
-        return value
+        return (self.coordinator.data or {}).get(self.key)
 
     @property
     def device_info(self):
