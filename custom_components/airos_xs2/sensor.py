@@ -26,8 +26,8 @@ OPTIONAL_SENSORS = {
     "hostname": ("Hostname", None), "uptime_seconds": ("Uptime", "s"),
     "ip_address": ("IP address", None), "cpu_model": ("CPU model", None),
     "kernel_version": ("Kernel version", None),
-    "load_1m": ("CPU load (1 min)", None), "load_5m": ("CPU load (5 min)", None),
-    "load_15m": ("CPU load (15 min)", None),
+    "load_1m": ("System Load (1 min)", None), "load_5m": ("System Load (5 min)", None),
+    "load_15m": ("System Load (15 min)", None),
     "mem_total_bytes": ("Memory total", "B"), "mem_free_bytes": ("Memory free", "B"),
     "mem_available_bytes": ("Memory available", "B"), "mem_used_bytes": ("Memory used", "B"),
     "mem_buffers_bytes": ("Memory buffers", "B"), "mem_cached_bytes": ("Memory cached", "B"),
@@ -129,22 +129,24 @@ def _friendly_name(key):
         }
         return f"{interface.lower()} — {metric_labels[metric.lower()]}"
     labels = {
-        "wlanMac": "Wireless MAC", "wireless_mac": "Wireless MAC",
-        "ethernet_mac": "Ethernet MAC", "lan_mac": "Ethernet MAC",
-        "mac": "MAC address", "essid": "SSID", "snr": "SNR", "ccq": "CCQ",
+        "wlanMac": "Wireless MAC Address", "wireless_mac": "Wireless MAC Address",
+        "ethernet_mac": "Ethernet MAC Address", "lan_mac": "Ethernet MAC Address",
+        "mac": "Device MAC Address", "ap_mac": "Access Point MAC Address",
+        "apMac": "Access Point MAC Address", "apmac": "Access Point MAC Address",
+        "device_id": "Device ID", "deviceId": "Device ID",
+        "device_name": "Device Name", "deviceName": "Device Name",
+        "device_ip": "Device IP Address", "deviceIp": "Device IP Address",
+        "firmware_version": "Firmware Version", "firmwareVersion": "Firmware Version",
+        "config_checksum": "Configuration Checksum", "cfgCrc": "Configuration Checksum",
+        "cfg_crc": "Configuration Checksum", "cfgCRC": "Configuration Checksum",
+        "freq": "Radio Frequency", "Freq": "Radio Frequency",
         "ip_address": "IP Address", "lan_ip": "Ethernet IP Address",
         "lanIpAddress": "LAN IP Address", "wlanIpAddress": "Wireless IP Address",
-        "uptime": "Device Uptime (raw)", "mac": "Device MAC Address",
-        "apMac": "Access Point MAC Address", "apmac": "Access Point MAC Address",
-        "deviceId": "Device ID", "device_id": "Device ID",
-        "deviceName": "Device Name", "device_name": "Device Name",
-        "deviceIp": "Device IP Address", "device_ip": "Device IP Address",
-        "freq": "Radio Frequency", "Freq": "Radio Frequency", "cfgCrc": "Configuration Checksum",
-        "cfg_crc": "Configuration Checksum",
-        "wlan_ip": "Wireless IP address", "wlanTxRate": "Wireless TX rate",
-        "wlanRxRate": "Wireless RX rate", "wlanConnections": "Wireless connections",
-        "connected_station_count": "Connected wireless stations",
-        "txpower": "Transmit power", "tx_power": "Transmit power",
+        "uptime": "Device Uptime (raw)", "essid": "SSID",
+        "snr": "SNR", "ccq": "CCQ", "wlanTxRate": "Wireless TX Rate",
+        "wlanRxRate": "Wireless RX Rate", "wlanConnections": "Wireless Connections",
+        "connected_station_count": "Connected Wireless Stations",
+        "txpower": "Transmit Power", "tx_power": "Transmit Power",
     }
     if key in labels:
         return labels[key]
@@ -183,9 +185,16 @@ def _metadata(key):
 
 def _device_type(key):
     normalized = key.lower().replace("-", "_")
-    if key in WIRELESS_KEYS or "wlan" in normalized or "wireless" in normalized or normalized.startswith("ath") or key.startswith("station_"):
+    if (
+        key in WIRELESS_KEYS or "wlan" in normalized or "wireless" in normalized
+        or normalized.startswith("ath") or key.startswith("station_")
+    ):
         return "wireless"
-    if key in ETHERNET_KEYS or "ethernet" in normalized or normalized.startswith("lan") or normalized.startswith("eth"):
+    if (
+        key in ETHERNET_KEYS or "ethernet" in normalized
+        or normalized.startswith("lan") or normalized.startswith("eth")
+        or normalized.startswith("br")
+    ):
         return "ethernet"
     return "system"
 
@@ -216,6 +225,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
             "wlanNoise": "noise",
             "wlanCCQ": "ccq",
             "wlanSNR": "snr",
+            "apMac": "ap_mac", "apmac": "ap_mac",
+            "deviceId": "device_id", "deviceName": "device_name",
+            "deviceIp": "ip_address", "deviceIP": "ip_address",
+            "firmwareVersion": "firmware_version",
+            "cfgCrc": "config_checksum", "cfgCRC": "config_checksum",
+            "Freq": "frequency", "freq": "frequency",
         }
         redundant = {
             source for source, target in aliases.items()
@@ -251,7 +266,7 @@ class AiRXS2Sensor(SensorEntity):
         if unit:
             self._attr_native_unit_of_measurement = unit
         if key in {
-            "cpu_model", "hostname", "kernel_version", "mac", "ethernet_mac",
+            "cpu_model", "hostname", "kernel_version", "mac", "ap_mac", "device_id", "device_name", "firmware_version", "config_checksum", "ethernet_mac",
             "lan_mac", "wlanMac", "wireless_mac", "platform",
         }:
             self._attr_entity_category = EntityCategory.DIAGNOSTIC

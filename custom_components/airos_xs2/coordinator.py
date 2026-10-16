@@ -142,6 +142,12 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             "wlanIpAddress": "wlan_ip", "lanRxBytes": "ethernet_rx_bytes",
             "lanTxBytes": "ethernet_tx_bytes", "wlanRxBytes": "wireless_rx_bytes",
             "wlanTxBytes": "wireless_tx_bytes",
+            "Freq": "frequency", "freq": "frequency",
+            "apMac": "ap_mac", "apmac": "ap_mac",
+            "deviceId": "device_id", "deviceName": "device_name",
+            "deviceIp": "ip_address", "deviceIP": "ip_address",
+            "firmwareVersion": "firmware_version",
+            "cfgCrc": "config_checksum", "cfgCRC": "config_checksum",
         }
         numeric = {
             "signal", "noise", "ccq", "snr", "frequency", "wlanTxRate",
@@ -158,7 +164,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 if match:
                     value = float(match.group(0))
                     if target in {
-                        "wlanConnections", "uptime_seconds", "mem_total_bytes",
+                        "wlanConnections", "uptime_seconds", "frequency", "mem_total_bytes",
                         "mem_free_bytes", "ethernet_rx_bytes", "ethernet_tx_bytes",
                         "wireless_rx_bytes", "wireless_tx_bytes",
                     }:
