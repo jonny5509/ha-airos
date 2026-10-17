@@ -1,0 +1,28 @@
+name: Validate integration
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile integration Python files
+        run: python -m compileall -q custom_components/airos_xs2
+      - name: Validate integration JSON
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          for path in Path("custom_components/airos_xs2").glob("*.json"):
+              json.loads(path.read_text(encoding="utf-8"))
+              print(f"Valid JSON: {path}")
+          PY
