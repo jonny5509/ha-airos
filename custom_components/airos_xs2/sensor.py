@@ -45,21 +45,25 @@ DEVICE_METADATA = {
 
 
 def _parse_device_name(raw_name):
-    """Split comma-separated device metadata from the display name."""
+    """Split comma-separated AirOS metadata out of the device display name."""
     parts = [part.strip() for part in raw_name.split(",")]
     metadata = {}
+    known_keys = {key.lower(): key for key in DEVICE_METADATA}
+
+    # Metadata keys can vary in capitalization between AirOS versions.
+    # Match known keys case-insensitively and keep only the clean device name.
     for part in parts[1:]:
         if "=" not in part:
             continue
         key, value = part.split("=", 1)
         key = key.strip()
         value = value.strip()
-        if key in DEVICE_METADATA and value:
-            metadata[key] = value
+        canonical_key = known_keys.get(key.lower())
+        if canonical_key and value:
+            metadata[canonical_key] = value
 
-    if metadata:
-        return parts[0] or raw_name, metadata
-    return raw_name, {}
+    display_name = parts[0] or "AirOS Device"
+    return display_name, metadata
 
 
 SENSOR_NAME_OVERRIDES = {
