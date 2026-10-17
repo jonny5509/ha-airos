@@ -290,13 +290,21 @@ async def async_setup_entry(hass, entry, async_add_entities):
         if data.get("wlanMac") not in (None, "")
         else set()
     )
+    # When identity metadata is embedded in the configured display name, prefer
+    # that single stable metadata entity over a second live entity for the same
+    # field emitted by mca-status.
+    obsolete_metadata_keys = set(metadata)
     host_prefix = f"{host}_"
     for entity in list(entity_registry.entities.values()):
         if entity.config_entry_id != entry.entry_id:
             continue
         if entity.unique_id.startswith(host_prefix):
             old_key = entity.unique_id[len(host_prefix):]
-            if old_key in obsolete_memory_keys or old_key in obsolete_alias_keys:
+            if (
+                old_key in obsolete_memory_keys
+                or old_key in obsolete_alias_keys
+                or old_key in obsolete_metadata_keys
+            ):
                 entity_registry.async_remove(entity.entity_id)
 
     for entity in entity_registry.entities.values():
@@ -418,6 +426,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
             )
             added_keys.add(key)
 
+    # Identity metadata already exposed from the configured name must not also
+    # become a second dynamically discovered sensor with a different unique ID.
+    added_keys.update(metadata)
     # Firmware detail fields are attributes of the single Firmware Upgrade sensor,
     # not separate entities of their own.
     added_keys.update(key for key in data if key.startswith("firmware_upgrade_"))
