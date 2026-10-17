@@ -244,14 +244,14 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
         # Preserve the historical display labels for the original XS2/XS5
         # hardware, which often identifies itself only by board code.
         if (
-            re.search(r"nanostation\\s*2(?![a-z0-9])|\\bns2\\b|\\bxs2\\b", identity, re.IGNORECASE)
+            re.search(r"nanostation\s*2(?![a-z0-9])|\bns2\b|\bxs2\b", identity, re.IGNORECASE)
             or "nanostation2" in compact
             or "xs2" in compact
         ):
             data["device_model"] = "NanoStation2"
             return
         if (
-            re.search(r"nanostation\\s*5(?![a-z0-9])|\\bns5\\b|\\bxs5\\b", identity, re.IGNORECASE)
+            re.search(r"nanostation\s*5(?![a-z0-9])|\bns5\b|\bxs5\b", identity, re.IGNORECASE)
             or "nanostation5" in compact
             or "xs5" in compact
         ):
@@ -261,21 +261,21 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
         # Recognize common AirOS product families without pretending they are
         # NanoStation XS2/XS5. Keep M-series suffixes distinct from legacy models.
         model_patterns = (
-            (r"nano\\s*station\\s*loco\\s*m?2|nanostationloco[m]?2", "NanoStation Loco M2"),
-            (r"nano\\s*station\\s*loco\\s*m?5|nanostationloco[m]?5", "NanoStation Loco M5"),
-            (r"nano\\s*station\\s*m2|nanostationm2", "NanoStation M2"),
-            (r"nano\\s*station\\s*m5|nanostationm5", "NanoStation M5"),
-            (r"power\\s*station\\s*2|powerstation2|\\bps2\\b", "PowerStation2"),
-            (r"power\\s*station\\s*5|powerstation5|\\bps5\\b", "PowerStation5"),
-            (r"pico\\s*station\\s*2|picostation2", "PicoStation2"),
-            (r"pico\\s*station\\s*5|picostation5", "PicoStation5"),
-            (r"bullet\\s*m?2|bulletm2", "Bullet M2"),
-            (r"bullet\\s*m?5|bulletm5", "Bullet M5"),
-            (r"rocket\\s*m2|rocketm2", "Rocket M2"),
-            (r"rocket\\s*m5|rocketm5", "Rocket M5"),
-            (r"airgrid\\s*m2|airgridm2", "AirGrid M2"),
-            (r"airgrid\\s*m5|airgridm5", "AirGrid M5"),
-            (r"nanobridge\\s*m5|nanobridgem5", "NanoBridge M5"),
+            (r"nano\s*station\s*loco\s*m?2|nanostationloco[m]?2", "NanoStation Loco M2"),
+            (r"nano\s*station\s*loco\s*m?5|nanostationloco[m]?5", "NanoStation Loco M5"),
+            (r"nano\s*station\s*m2|nanostationm2", "NanoStation M2"),
+            (r"nano\s*station\s*m5|nanostationm5", "NanoStation M5"),
+            (r"power\s*station\s*2|powerstation2|\bps2\b", "PowerStation2"),
+            (r"power\s*station\s*5|powerstation5|\bps5\b", "PowerStation5"),
+            (r"pico\s*station\s*2|picostation2", "PicoStation2"),
+            (r"pico\s*station\s*5|picostation5", "PicoStation5"),
+            (r"bullet\s*m?2|bulletm2", "Bullet M2"),
+            (r"bullet\s*m?5|bulletm5", "Bullet M5"),
+            (r"rocket\s*m2|rocketm2", "Rocket M2"),
+            (r"rocket\s*m5|rocketm5", "Rocket M5"),
+            (r"airgrid\s*m2|airgridm2", "AirGrid M2"),
+            (r"airgrid\s*m5|airgridm5", "AirGrid M5"),
+            (r"nanobridge\s*m5|nanobridgem5", "NanoBridge M5"),
         )
         for pattern, model in model_patterns:
             if re.search(pattern, identity, re.IGNORECASE) or re.search(pattern, compact, re.IGNORECASE):
