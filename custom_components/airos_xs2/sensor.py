@@ -43,6 +43,36 @@ DEVICE_METADATA = {
     "deviceIp": ("Configured Device IP Address", None),
 }
 
+def _device_registry_fields(data, host):
+    """Return supported Home Assistant device-registry metadata when available."""
+    fields = {}
+    firmware = data.get("firmwareVersion")
+    platform = data.get("platform")
+    device_id = data.get("deviceId")
+    if firmware:
+        fields["sw_version"] = str(firmware).strip()
+    if platform:
+        fields["hw_version"] = str(platform).strip()
+    if device_id:
+        fields["serial_number"] = str(device_id).strip()
+
+    mac_addresses = {
+        str(data[key]).strip().lower()
+        for key in ("mac", "wlanMac", "wireless_mac", "ethernet_mac")
+        if data.get(key) and re.fullmatch(r"(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}", str(data[key]).strip())
+    }
+    if mac_addresses:
+        fields["connections"] = {
+            (dr.CONNECTION_NETWORK_MAC, mac) for mac in mac_addresses
+        }
+
+    # AirOS is normally managed through its local web interface.
+    if host and not str(host).startswith(("http://", "https://")):
+        fields["configuration_url"] = f"http://{host}"
+    elif host:
+        fields["configuration_url"] = str(host)
+    return fields
+
 
 def _parse_device_name(raw_name):
     """Split comma-separated AirOS metadata out of the device display name."""
@@ -153,6 +183,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         name=display_name,
         manufacturer="Ubiquiti",
         model=data.get("device_model") or "Ubiquiti AirOS",
+        **_device_registry_fields(data, entry.data["host"]),
     )
 
     # Ensure the Ethernet child exists, then move existing Ethernet entities
@@ -208,15 +239,25 @@ async def async_setup_entry(hass, entry, async_add_entities):
     # The first probe may not identify the hardware. Update the main device
     # registry entry on later coordinator refreshes once a specific model appears.
     def _update_registered_device_model():
-        detected_model = (coordinator.data or {}).get("device_model")
-        if detected_model and detected_model != "Ubiquiti AirOS":
-            current_device = device_registry.async_get_device(
-                identifiers={(DOMAIN, entry.data["host"])}
-            )
-            if current_device and current_device.model != detected_model:
-                device_registry.async_update_device(
-                    current_device.id, model=detected_model
-                )
+        current_data = coordinator.data or {}
+        current_device = device_registry.async_get_device(
+            identifiers={(DOMAIN, entry.data["host"])}
+        )
+        if not current_device:
+            return
+
+        updates = _device_registry_fields(current_data, entry.data["host"])
+        detected_model = current_data.get("device_model")
+        if detected_model:
+            updates["model"] = detected_model
+
+        # Only write fields when a newly discovered value differs from the registry.
+        updates = {
+            key: value for key, value in updates.items()
+            if getattr(current_device, key, None) != value
+        }
+        if updates:
+            device_registry.async_update_device(current_device.id, **updates)
 
     entry.async_on_unload(coordinator.async_add_listener(_update_registered_device_model))
 
@@ -327,15 +368,18 @@ class AiRXS2Sensor(SensorEntity):
     @property
     def device_info(self):
         host = self._entry.data["host"]
+        data = self.coordinator.data or {}
         info = {
             "identifiers": {(DOMAIN, host if self._device_kind == "main" else f"{host}_{self._device_kind}")},
             "name": self._device_name,
             "manufacturer": "Ubiquiti",
-            "model": (self.coordinator.data or {}).get("device_model") or "Ubiquiti AirOS" if self._device_kind == "main" else (
-                f"{(self.coordinator.data or {}).get('device_model') or 'AirOS'} Ethernet" if self._device_kind == "ethernet" else
-                f"{(self.coordinator.data or {}).get('device_model') or 'AirOS'} Wireless"
+            "model": (data.get("device_model") or "Ubiquiti AirOS") if self._device_kind == "main" else (
+                f"{data.get('device_model') or 'AirOS'} Ethernet" if self._device_kind == "ethernet" else
+                f"{data.get('device_model') or 'AirOS'} Wireless"
             ),
         }
+        if self._device_kind == "main":
+            info.update(_device_registry_fields(data, host))
         if self._device_kind != "main":
             info["via_device_id"] = self._parent_device_id
         return DeviceInfo(**info)
