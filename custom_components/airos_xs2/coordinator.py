@@ -376,12 +376,12 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
 
         elif name == "iwconfig":
             # Read wireless association status where the legacy tool is available.
-            blocks = re.split(r"(?m)^(?=[A-Za-z0-9_.:-]+\\s+)", output)
+            blocks = re.split(r"(?m)^(?=[A-Za-z0-9_.:-]+\s+)", output)
             for block in blocks:
-                heading = re.match(r"^([A-Za-z0-9_.:-]+)\\s+", block)
+                heading = re.match(r"^([A-Za-z0-9_.:-]+)\s+", block)
                 if not heading or not heading.group(1).lower().startswith(("wlan", "ath")):
                     continue
-                association = re.search(r"Access Point:\\s*([0-9A-Fa-f:]{17}|Not-Associated)", block, re.IGNORECASE)
+                association = re.search(r"Access Point:\s*([0-9A-Fa-f:]{17}|Not-Associated)", block, re.IGNORECASE)
                 if association:
                     ap = association.group(1)
                     data["wireless_link_detected"] = "Connected to one AP" if ap.lower() != "not-associated" and ap != "00:00:00:00:00:00" else "Disconnected"
