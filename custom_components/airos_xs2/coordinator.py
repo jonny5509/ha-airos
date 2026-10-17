@@ -161,30 +161,55 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                         data["cpu_model"] = value
                         break
         elif name == "ifconfig":
-            # Support both BusyBox legacy "inet addr:" and newer "inet " output.
-            match = re.search(r"inet addr:([0-9.]+)", output)
-            if not match:
-                match = re.search(r"\binet ([0-9.]+)", output)
-            if match:
-                data["ip_address"] = match.group(1)
-            macs = re.findall(r"(?:HWaddr|ether)\s+([0-9A-Fa-f:]{17})", output)
-            if macs:
-                data.setdefault("ethernet_mac", macs[0])
-                if len(macs) > 1:
-                    data.setdefault("wireless_mac", macs[1])
+            # Parse each interface separately; order varies by firmware.
+            # Legacy airOS commonly uses ath0/wlan0, eth0, and br0.
+            blocks = re.split(r"(?m)^(?=[A-Za-z0-9_.:-]+\s+Link encap:)", output)
+            for block in blocks:
+                heading = re.match(r"^([A-Za-z0-9_.:-]+)\s+Link encap:", block)
+                if not heading:
+                    continue
+                interface = heading.group(1).lower()
+                is_wireless = interface.startswith(("wlan", "ath"))
+                is_ethernet = interface.startswith(("eth", "br"))
+                if not (is_wireless or is_ethernet):
+                    continue
+
+                prefix = "wireless" if is_wireless else "ethernet"
+                mac = re.search(r"(?:HWaddr|ether)\s+([0-9A-Fa-f:]{17})", block)
+                if mac:
+                    data.setdefault(f"{prefix}_mac", mac.group(1))
+                    if is_wireless:
+                        data.setdefault("wlanMac", mac.group(1))
+                ip = re.search(r"inet addr:([0-9.]+)", block)
+                if not ip:
+                    ip = re.search(r"\binet ([0-9.]+)", block)
+                if ip:
+                    data.setdefault("ip_address", ip.group(1))
+
+                flags = re.search(r"<([^>]+)>", block)
+                if flags:
+                    state = "up" if "UP" in flags.group(1).split(",") else "down"
+                    data.setdefault(f"{prefix}_interface_state", state)
+
         elif name == "netdev":
+            # Prefer physical interfaces to bridge aliases, avoiding br0 counters
+            # being mislabeled as the physical Ethernet port when eth0 is present.
+            counters = {}
             for line in output.splitlines():
                 if ":" not in line:
                     continue
                 interface, stats = line.split(":", 1)
-                interface = interface.strip()
+                interface = interface.strip().lower()
                 values = stats.split()
                 if len(values) < 9:
                     continue
-                prefix = "wireless" if interface.lower().startswith(("wlan", "ath")) else (
-                    "ethernet" if interface.lower().startswith(("eth", "br")) else None
-                )
-                if not prefix:
+                if interface.startswith(("wlan", "ath")):
+                    prefix, priority = "wireless", 2
+                elif interface.startswith("eth"):
+                    prefix, priority = "ethernet", 2
+                elif interface.startswith("br"):
+                    prefix, priority = "ethernet", 1
+                else:
                     continue
                 try:
                     rx_bytes = int(values[0])
@@ -192,5 +217,9 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 except (TypeError, ValueError):
                     _LOGGER.debug("Skipping malformed /proc/net/dev row: %s", line)
                     continue
-                data.setdefault(f"{prefix}_rx_bytes", rx_bytes)
-                data.setdefault(f"{prefix}_tx_bytes", tx_bytes)
+                previous = counters.get(prefix)
+                if previous is None or priority > previous[0]:
+                    counters[prefix] = (priority, rx_bytes, tx_bytes)
+            for prefix, (_, rx_bytes, tx_bytes) in counters.items():
+                data[f"{prefix}_rx_bytes"] = rx_bytes
+                data[f"{prefix}_tx_bytes"] = tx_bytes
