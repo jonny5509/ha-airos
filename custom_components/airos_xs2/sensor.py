@@ -27,9 +27,7 @@ OPTIONAL_SENSORS = {
     "uptime_seconds": ("Uptime", "s"),
     "ip_address": ("Device IP Address", None),
     "cpu_model": ("CPU Model", None),
-    "load_1m": ("CPU Load (1 Minute)", None),
-    "load_5m": ("CPU Load (5 Minutes)", None),
-    "load_15m": ("CPU Load (15 Minutes)", None),
+    "cpu_usage": ("CPU Usage", "%"),
     "mem_total_bytes": ("Total Memory", "B"),
     "mem_free_bytes": ("Free Memory", "B"),
     "mem_available_bytes": ("Available Memory", "B"),
@@ -89,9 +87,7 @@ SENSOR_NAME_OVERRIDES = {
     "uptime_seconds": "Uptime",
     "ip_address": "Device IP Address",
     "cpu_model": "CPU Model",
-    "load_1m": "CPU Load (1 Minute)",
-    "load_5m": "CPU Load (5 Minutes)",
-    "load_15m": "CPU Load (15 Minutes)",
+    "cpu_usage": "CPU Usage",
     "mem_total_bytes": "Total Memory",
     "mem_free_bytes": "Free Memory",
     "mem_available_bytes": "Available Memory",
@@ -216,7 +212,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             continue
         # IP discovery depends on an optional SSH probe. Register the entity
         # even if the first probe fails, so it can become available on later polls.
-        if key in {"ip_address", "uptime_seconds", "ethernet_interface_state", "wireless_interface_state"} or data.get(key) not in (None, ""):
+        if key in {"ip_address", "uptime_seconds", "ethernet_interface_state", "wireless_interface_state", "cpu_usage"} or data.get(key) not in (None, ""):
             sensors.append(
                 AiRXS2Sensor(
                     coordinator, entry, key, unit, label,
@@ -291,7 +287,7 @@ class AiRXS2Sensor(SensorEntity):
                    "wireless_rx_bytes", "wireless_tx_bytes"}:
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         elif key in {"signal", "noise", "ccq", "snr", "wlanTxRate", "wlanRxRate",
-                     "frequency", "load_1m", "load_5m", "load_15m",
+                     "frequency", "cpu_usage",
                      "mem_total_bytes", "mem_free_bytes", "mem_available_bytes"}:
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
