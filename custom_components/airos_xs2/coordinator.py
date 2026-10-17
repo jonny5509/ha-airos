@@ -387,12 +387,12 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             # BusyBox output ("eth0: flags=..."). Interface order differs across
             # AirOS releases, so don't depend on a fixed order.
             blocks = re.split(
-                r"(?m)^(?=[A-Za-z0-9_.:-]+(?:\\s+Link encap:|:?\\s+flags=|:\\s*flags=))",
+                r"(?m)^(?=[A-Za-z0-9_.:-]+(?:\s+Link encap:|:?\s+flags=|:\s*flags=))",
                 output,
             )
             for block in blocks:
                 heading = re.match(
-                    r"^([A-Za-z0-9_.:-]+)(?:\\s+Link encap:|:?\\s+flags=|:\\s*flags=)",
+                    r"^([A-Za-z0-9_.:-]+)(?:\s+Link encap:|:?\s+flags=|:\s*flags=)",
                     block,
                 )
                 if not heading:
@@ -405,7 +405,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
 
                 prefix = "wireless" if is_wireless else "ethernet"
                 mac = re.search(
-                    r"(?:HWaddr|ether)\\s+([0-9A-Fa-f:]{17})",
+                    r"(?:HWaddr|ether)\s+([0-9A-Fa-f:]{17})",
                     block,
                     re.IGNORECASE,
                 )
@@ -416,7 +416,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
 
                 ip = re.search(r"inet addr:([0-9.]+)", block)
                 if not ip:
-                    ip = re.search(r"\\binet\\s+(?:addr:)?([0-9.]+)", block)
+                    ip = re.search(r"\binet\s+(?:addr:)?([0-9.]+)", block)
                 if ip:
                     data.setdefault("ip_address", ip.group(1))
 
@@ -424,9 +424,9 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 if flags:
                     state = "up" if "UP" in flags.group(1).split(",") else "down"
                     data.setdefault(f"{prefix}_interface_state", state)
-                elif re.search(r"(?m)^\\s*UP(?:\\s|$)", block):
+                elif re.search(r"(?m)^\s*UP(?:\s|$)", block):
                     data.setdefault(f"{prefix}_interface_state", "up")
-                elif re.search(r"(?m)^\\s*DOWN(?:\\s|$)", block):
+                elif re.search(r"(?m)^\s*DOWN(?:\s|$)", block):
                     data.setdefault(f"{prefix}_interface_state", "down")
 
         elif name == "netdev":
