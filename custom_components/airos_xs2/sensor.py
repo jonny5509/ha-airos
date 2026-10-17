@@ -27,6 +27,7 @@ OPTIONAL_SENSORS = {
     "uptime_seconds": ("Uptime", "s"),
     "ip_address": ("Device IP Address", None),
     "cpu_model": ("CPU Model", None),
+    "device_model": ("Detected Device Model", None),
     "load_1m": ("CPU Load (1 Minute)", None),
     "load_5m": ("CPU Load (5 Minutes)", None),
     "load_15m": ("CPU Load (15 Minutes)", None),
@@ -89,6 +90,7 @@ SENSOR_NAME_OVERRIDES = {
     "uptime_seconds": "Uptime",
     "ip_address": "Device IP Address",
     "cpu_model": "CPU Model",
+    "device_model": "Detected Device Model",
     "load_1m": "CPU Load (1 Minute)",
     "load_5m": "CPU Load (5 Minutes)",
     "load_15m": "CPU Load (15 Minutes)",
@@ -156,7 +158,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         identifiers={(DOMAIN, entry.data["host"])},
         name=display_name,
         manufacturer="Ubiquiti",
-        model="Ubiquiti AirOS",
+        model=data.get("device_model") or "Ubiquiti AirOS",
     )
 
     sensors = [
@@ -262,8 +264,9 @@ class AiRXS2Sensor(SensorEntity):
             "identifiers": {(DOMAIN, host if self._device_kind == "main" else f"{host}_{self._device_kind}")},
             "name": self._device_name,
             "manufacturer": "Ubiquiti",
-            "model": "Ubiquiti AirOS" if self._device_kind == "main" else (
-                "AirOS Ethernet" if self._device_kind == "ethernet" else "AirOS Wireless"
+            "model": (self.coordinator.data or {}).get("device_model") or "Ubiquiti AirOS" if self._device_kind == "main" else (
+                f"{(self.coordinator.data or {}).get('device_model') or 'AirOS'} Ethernet" if self._device_kind == "ethernet" else
+                f"{(self.coordinator.data or {}).get('device_model') or 'AirOS'} Wireless"
             ),
         }
         if self._device_kind != "main":
