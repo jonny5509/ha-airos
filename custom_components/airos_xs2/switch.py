@@ -20,7 +20,8 @@ class AiRXS2RebootSwitch(SwitchEntity):
     def __init__(self, coordinator, entry):
         self.coordinator = coordinator
         self._entry = entry
-        self._name = _display_name(entry.data["name"])
+        detected_model = (coordinator.data or {}).get("device_model")
+        self._name = detected_model or _display_name(entry.data["name"])
         self._attr_name = f"{self._name} Reboot"
         self._attr_unique_id = f"{entry.data['host']}_reboot"
 
@@ -30,7 +31,7 @@ class AiRXS2RebootSwitch(SwitchEntity):
             identifiers={(DOMAIN, self._entry.data["host"])},
             name=self._name,
             manufacturer="Ubiquiti",
-            model="Ubiquiti AirOS",
+            model=(self.coordinator.data or {}).get("device_model") or "Ubiquiti AirOS",
         )
 
     async def async_turn_on(self, **kwargs):
