@@ -166,6 +166,25 @@ async def async_setup_entry(hass, entry, async_add_entities):
         via_device=(DOMAIN, host),
     )
     entity_registry = er.async_get(hass)
+
+    # Remove registry entries left behind by older releases that exposed raw
+    # memory counters as individual sensors. These keys are now attributes on
+    # the single RAM Usage sensor, so leaving the old entries creates stale
+    # Memory entities in Home Assistant after an upgrade.
+    obsolete_memory_keys = {
+        "mem_total_bytes",
+        "mem_free_bytes",
+        "mem_available_bytes",
+    }
+    host_prefix = f"{host}_"
+    for entity in list(entity_registry.entities.values()):
+        if entity.config_entry_id != entry.entry_id:
+            continue
+        if entity.unique_id.startswith(host_prefix):
+            old_key = entity.unique_id[len(host_prefix):]
+            if old_key in obsolete_memory_keys:
+                entity_registry.async_remove(entity.entity_id)
+
     for entity in entity_registry.entities.values():
         if entity.config_entry_id != entry.entry_id:
             continue
