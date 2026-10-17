@@ -133,10 +133,9 @@ def _device_kind(key):
         "essid", "frequency", "wireless_mac", "mode",
     }:
         return "wireless"
-    # Keep the procfs uptime reading on the Ethernet child device, leaving
-    # any AirOS-reported uptime sensor on the main device.
+    # Keep the single canonical uptime sensor on the main device.
     if key == "uptime_seconds":
-        return "ethernet"
+        return "main"
     if "lan" in normalized or normalized.startswith("ethernet_") or normalized == "ethernet_mac":
         return "ethernet"
     return "main"
@@ -174,26 +173,13 @@ async def async_setup_entry(hass, entry, async_add_entities):
         # IP discovery depends on an optional SSH probe. Register the entity
         # even if the first probe fails, so it can become available on later polls.
         if key in {"ip_address", "uptime_seconds"} or data.get(key) not in (None, ""):
-            if key == "uptime_seconds":
-                # Register one entity per device with distinct IDs. This also
-                # avoids reusing an old registry entry tied to the wrong device.
-                for uptime_device in ("main", "ethernet", "wireless"):
-                    sensors.append(
-                        AiRXS2Sensor(
-                            coordinator, entry, key, unit, label,
-                            display_name=display_name, device_kind=uptime_device,
-                            unique_id_suffix=uptime_device,
-                            parent_device_id=parent_device.id,
-                        )
-                    )
-            else:
-                sensors.append(
-                    AiRXS2Sensor(
-                        coordinator, entry, key, unit, label,
-                        display_name=display_name, device_kind=_device_kind(key),
-                        parent_device_id=parent_device.id,
-                    )
+            sensors.append(
+                AiRXS2Sensor(
+                    coordinator, entry, key, unit, label,
+                    display_name=display_name, device_kind=_device_kind(key),
+                    parent_device_id=parent_device.id,
                 )
+            )
             added_keys.add(key)
 
     for key, value in data.items():
