@@ -44,9 +44,13 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
     async def _run_command(self, conn, command):
         """Run a read-only command without relying on completed-result attributes."""
         async with conn.create_process(command) as proc:
-            stdout = await proc.stdout.read()
-            stderr = await proc.stderr.read()
-            await proc.wait()
+            # Drain both SSH streams concurrently. Reading stdout to completion
+            # before stderr can deadlock if an older BusyBox command fills stderr.
+            stdout, stderr = await asyncio.wait_for(
+                asyncio.gather(proc.stdout.read(), proc.stderr.read()),
+                timeout=15,
+            )
+            await asyncio.wait_for(proc.wait(), timeout=5)
         output = _to_text(stdout)
         return output if output.strip() else _to_text(stderr)
 
@@ -486,7 +490,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 values = stats.split()
                 if len(values) < 9:
                     continue
-                if interface.startswith(("wlan", "ath")):
+                if interface.startswith(("wlan", "ath", "wifi", "ra")):
                     prefix, priority = "wireless", 2
                 elif interface.startswith("eth"):
                     prefix, priority = "ethernet", 2
