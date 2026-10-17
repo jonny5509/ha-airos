@@ -177,8 +177,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
     display_name, metadata = _parse_device_name(entry.data["name"])
     detected_model = data.get("device_model")
     device_label = detected_model or display_name or "AirOS"
-    wireless_device_name = f"{device_label}-Wireless"
-    ethernet_device_name = f"{device_label}-Ethernet"
+    wireless_device_name = "Ubiquiti -Wireless"
+    ethernet_device_name = "Ubiquiti -Ethernet"
 
     # Register the parent device first so child devices can reference its ID.
     device_registry = dr.async_get(hass)
@@ -199,7 +199,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         identifiers={(DOMAIN, f"{host}_ethernet")},
         name=ethernet_device_name,
         manufacturer="Ubiquiti",
-        model=f"{device_label} Ethernet",
+        model="Ubiquiti Ethernet",
         via_device=(DOMAIN, host),
     )
     wireless_device = device_registry.async_get_or_create(
@@ -207,7 +207,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         identifiers={(DOMAIN, f"{host}_wireless")},
         name=wireless_device_name,
         manufacturer="Ubiquiti",
-        model=f"{device_label} Wireless",
+        model="Ubiquiti Wireless",
         via_device=(DOMAIN, host),
     )
     entity_registry = er.async_get(hass)
@@ -287,9 +287,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
             )
             if child:
                 child_updates = {
-                    "name": f"{device_label}-{suffix}",
+                    "name": f"Ubiquiti -{suffix}",
                     "manufacturer": "Ubiquiti",
-                    "model": f"{device_label} {suffix}",
+                    "model": f"Ubiquiti {suffix}",
                 }
                 child_updates = {
                     key: value for key, value in child_updates.items()
@@ -372,9 +372,9 @@ class AiRXS2Sensor(SensorEntity):
         detected_model = (coordinator.data or {}).get("device_model")
         device_label = detected_model or self._display_name or "AirOS"
         if device_kind == "ethernet":
-            self._device_name = f"{device_label}-Ethernet"
+            self._device_name = "Ubiquiti -Ethernet"
         elif device_kind == "wireless":
-            self._device_name = f"{device_label}-Wireless"
+            self._device_name = "Ubiquiti -Wireless"
         else:
             self._device_name = device_label
         self._attr_name = (
@@ -415,8 +415,8 @@ class AiRXS2Sensor(SensorEntity):
             "name": self._device_name,
             "manufacturer": "Ubiquiti",
             "model": (data.get("device_model") or "Ubiquiti AirOS") if self._device_kind == "main" else (
-                f"{data.get('device_model') or 'AirOS'} Ethernet" if self._device_kind == "ethernet" else
-                f"{data.get('device_model') or 'AirOS'} Wireless"
+                "Ubiquiti Ethernet" if self._device_kind == "ethernet" else
+                "Ubiquiti Wireless"
             ),
         }
         if self._device_kind == "main":
