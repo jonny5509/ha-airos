@@ -1,4 +1,5 @@
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
 import re
@@ -145,10 +146,20 @@ async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]
     data = coordinator.data or {}
     display_name, metadata = _parse_device_name(entry.data["name"])
+    # Register the parent device first so child devices can reference its ID.
+    device_registry = dr.async_get(hass)
+    parent_device = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, entry.data["host"])},
+        name=display_name,
+        manufacturer="Ubiquiti",
+        model="Ubiquiti AirOS",
+    )
+
     sensors = [
         AiRXS2Sensor(
             coordinator, entry, key, unit, label, display_name=display_name,
-            device_kind=_device_kind(key),
+            device_kind=_device_kind(key), parent_device_id=parent_device.id,
         )
         for key, (label, unit) in BASE_SENSORS.items()
     ]
@@ -172,6 +183,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                             coordinator, entry, key, unit, label,
                             display_name=display_name, device_kind=uptime_device,
                             unique_id_suffix=uptime_device,
+                            parent_device_id=parent_device.id,
                         )
                     )
             else:
@@ -179,6 +191,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                     AiRXS2Sensor(
                         coordinator, entry, key, unit, label,
                         display_name=display_name, device_kind=_device_kind(key),
+                        parent_device_id=parent_device.id,
                     )
                 )
             added_keys.add(key)
@@ -189,6 +202,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 AiRXS2Sensor(
                     coordinator, entry, key, None, _friendly_name(key),
                     display_name=display_name, device_kind=_device_kind(key),
+                    parent_device_id=parent_device.id,
                 )
             )
 
@@ -198,6 +212,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             AiRXS2Sensor(
                 coordinator, entry, f"device_metadata_{key}", unit, label,
                 display_name=display_name, static_value=value, device_kind="main",
+                parent_device_id=parent_device.id,
             )
         )
 
@@ -208,6 +223,7 @@ class AiRXS2Sensor(SensorEntity):
     def __init__(
         self, coordinator, entry, key, unit, label=None, display_name=None,
         static_value=None, device_kind="main", unique_id_suffix=None,
+        parent_device_id=None,
     ):
         self.coordinator = coordinator
         self.key = key
@@ -215,6 +231,7 @@ class AiRXS2Sensor(SensorEntity):
         self._display_name = display_name or entry.data["name"]
         self._static_value = static_value
         self._device_kind = device_kind
+        self._parent_device_id = parent_device_id
         if device_kind == "ethernet":
             self._device_name = f"{self._display_name} Ethernet"
         elif device_kind == "wireless":
@@ -260,7 +277,7 @@ class AiRXS2Sensor(SensorEntity):
             ),
         }
         if self._device_kind != "main":
-            info["via_device"] = (DOMAIN, host)
+            info["via_device_id"] = self._parent_device_id
         return DeviceInfo(**info)
 
     @property
