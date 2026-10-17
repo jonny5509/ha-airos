@@ -198,7 +198,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
         # Ubiquiti's published final legacy NanoStation5 release is v4.0.4
         # build 5074. Do not extrapolate this catalog entry to other models.
         data["firmware_upgrade_latest_version"] = "4.0.4.5074"
-        data["firmware_upgrade_source"] = "https://ui.com/download/airmax-legacy/nanostation/ns5"
+        data["firmware_upgrade_source"] = "https://ui.com/download/airmax-legacy"
 
         if data.get("device_model") != "NanoStation5":
             data["firmware_upgrade"] = "Unknown"
@@ -214,7 +214,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
 
         installed_version = tuple(int(part or 0) for part in match.groups())
         latest_version = (4, 0, 4, 5074)
-        data["firmware_upgrade_installed_version"] = ".".join(str(part) for part in installed_version)
+        data["firmware_upgrade_installed_version"] = installed
         if installed_version < latest_version:
             data["firmware_upgrade"] = "Update available"
             data["firmware_upgrade_reason"] = "A newer published legacy NanoStation5 firmware version exists. Check release notes and upgrade prerequisites before installing."
