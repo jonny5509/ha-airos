@@ -1,8 +1,9 @@
 import asyncio
 import asyncssh
 import logging
-from contextlib import asynccontextmanager
+import math
 import re
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.core import HomeAssistant
@@ -21,9 +22,10 @@ def _to_text(val) -> str:
 
 def _number(value, default=None):
     try:
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError):
         return default
+    return number if math.isfinite(number) else default
 
 
 class AiRXS2Coordinator(DataUpdateCoordinator):
@@ -289,29 +291,45 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
         # Fall back to the best available platform/product identifier. Some
         # old boards expose only short codes such as XM/XW; keep those rather
         # than guessing a retail model name.
-        for key in (
-            "productname", "product", "model", "devicemodel",
-            "platform", "deviceId", "boardname", "board_name", "board",
-            "cpu_model",
-        ):
+        for key in ("productname", "product", "model", "devicemodel"):
             value = data.get(key)
             if value and str(value).strip():
                 data["device_model"] = str(value).strip()
+                return
+
+        # Platform/board fields often contain chipset codes (XM, XW, AR231x)
+        # rather than a retail model. Don't replace a user's device name with
+        # a chipset label when the firmware doesn't identify the exact product.
+        for key in ("platform", "boardname", "board_name", "board"):
+            value = data.get(key)
+            if not value:
+                continue
+            candidate = str(value).strip()
+            compact_candidate = re.sub(r"[^a-z0-9]", "", candidate.lower())
+            if compact_candidate in {
+                "xm", "xw", "ar2313", "ar2315", "ar2316",
+                "ar7240", "ar7241", "ar7242", "ar9342", "ar9344",
+            }:
+                continue
+            if candidate:
+                data["device_model"] = candidate
                 return
 
     @staticmethod
     def _update_firmware_upgrade_status(data):
         """Compare supported legacy NanoStation5 firmware with Ubiquiti's published release."""
         # Ubiquiti's published final legacy NanoStation5 release is v4.0.4
-        # build 5074. Do not extrapolate this catalog entry to other models.
-        data["firmware_upgrade_latest_version"] = "4.0.4.5074"
-        data["firmware_upgrade_source"] = "https://ui.com/download/airmax-legacy"
-
+        # build 5074. Do not expose this catalog entry for other models.
         if data.get("device_model") != "NanoStation5":
+            data.pop("firmware_upgrade_latest_version", None)
+            data.pop("firmware_upgrade_source", None)
+            data.pop("firmware_upgrade_installed_version", None)
             data["firmware_upgrade"] = "Unknown"
             data["firmware_upgrade_reason"] = "No verified firmware catalog entry for this device model."
             return
 
+        data["firmware_upgrade_latest_version"] = "4.0.4.5074"
+        data["firmware_upgrade_source"] = "https://ui.com/download/airmax-legacy"
         installed = str(data.get("firmwareVersion") or "")
         match = re.search(r"v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?", installed, re.IGNORECASE)
         if not match:
