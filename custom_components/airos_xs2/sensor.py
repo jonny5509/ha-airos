@@ -1,5 +1,5 @@
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
 import re
@@ -158,6 +158,30 @@ async def async_setup_entry(hass, entry, async_add_entities):
         manufacturer="Ubiquiti",
         model=data.get("device_model") or "Ubiquiti AirOS",
     )
+
+    # Ensure the Ethernet child exists, then move existing Ethernet entities
+    # back under it. This preserves entity IDs and their history after upgrades.
+    host = entry.data["host"]
+    ethernet_device = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, f"{host}_ethernet")},
+        name=f"{display_name} Ethernet",
+        manufacturer="Ubiquiti",
+        model=f"{data.get('device_model') or 'AirOS'} Ethernet",
+        via_device=(DOMAIN, host),
+    )
+    entity_registry = er.async_get(hass)
+    for entity in entity_registry.entities.values():
+        if entity.config_entry_id != entry.entry_id:
+            continue
+        prefix = f"{host}_"
+        if not entity.unique_id.startswith(prefix):
+            continue
+        key = entity.unique_id[len(prefix):]
+        if _device_kind(key) == "ethernet" and entity.device_id != ethernet_device.id:
+            entity_registry.async_update_entity(
+                entity.entity_id, device_id=ethernet_device.id
+            )
 
     # The first probe may not identify the hardware. Update the main device
     # registry entry on later coordinator refreshes once a specific model appears.
