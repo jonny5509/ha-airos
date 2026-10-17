@@ -28,6 +28,7 @@ OPTIONAL_SENSORS = {
     "ip_address": ("Device IP Address", None),
     "cpu_model": ("CPU Model", None),
     "cpu_usage": ("CPU Usage", "%"),
+    "firmware_upgrade": ("Firmware Upgrade", None),
     "mem_total_bytes": ("Total Memory", "B"),
     "mem_free_bytes": ("Free Memory", "B"),
     "mem_available_bytes": ("Available Memory", "B"),
@@ -88,6 +89,7 @@ SENSOR_NAME_OVERRIDES = {
     "ip_address": "Device IP Address",
     "cpu_model": "CPU Model",
     "cpu_usage": "CPU Usage",
+    "firmware_upgrade": "Firmware Upgrade",
     "mem_total_bytes": "Total Memory",
     "mem_free_bytes": "Free Memory",
     "mem_available_bytes": "Available Memory",
@@ -212,7 +214,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             continue
         # IP discovery depends on an optional SSH probe. Register the entity
         # even if the first probe fails, so it can become available on later polls.
-        if key in {"ip_address", "uptime_seconds", "ethernet_interface_state", "wireless_interface_state", "cpu_usage"} or data.get(key) not in (None, ""):
+        if key in {"ip_address", "uptime_seconds", "ethernet_interface_state", "wireless_interface_state", "cpu_usage", "firmware_upgrade"} or data.get(key) not in (None, ""):
             sensors.append(
                 AiRXS2Sensor(
                     coordinator, entry, key, unit, label,
@@ -312,3 +314,19 @@ class AiRXS2Sensor(SensorEntity):
         if self._static_value is not None:
             return self._static_value
         return (self.coordinator.data or {}).get(self.key)
+
+    @property
+    def extra_state_attributes(self):
+        if self.key != "firmware_upgrade":
+            return None
+        data = self.coordinator.data or {}
+        return {
+            key.removeprefix("firmware_upgrade_"): data[key]
+            for key in (
+                "firmware_upgrade_installed_version",
+                "firmware_upgrade_latest_version",
+                "firmware_upgrade_reason",
+                "firmware_upgrade_source",
+            )
+            if data.get(key) is not None
+        }
