@@ -73,6 +73,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                     ("uptime", "cat /proc/uptime"),
                     ("meminfo", "cat /proc/meminfo"),
                     ("cpu_stat", "cat /proc/stat"),
+                    ("cpu_top", "top -b -n2 -d1"),
                     ("cpuinfo", "cat /proc/cpuinfo"),
                     ("version", "cat /etc/version"),
                     ("board", "cat /etc/board.info"),
@@ -227,6 +228,30 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                             data["cpu_usage"] = round(
                                 100 * (total_delta - idle_delta) / total_delta, 2
                             )
+        elif name == "cpu_top":
+            # Some older AirOS builds do not expose usable /proc/stat counters.
+            # Fall back to the CPU summary printed by BusyBox top.
+            if "cpu_usage" not in data:
+                cpu_lines = [
+                    line for line in output.splitlines()
+                    if re.search(r"\bCPU\s*:", line, re.IGNORECASE)
+                ]
+                if cpu_lines:
+                    values = {
+                        label.lower(): float(value)
+                        for value, label in re.findall(
+                            r"(\d+(?:\.\d+)?)\s*%\s*([a-z]+)",
+                            cpu_lines[-1],
+                            re.IGNORECASE,
+                        )
+                    }
+                    idle = values.get("idle")
+                    if idle is not None:
+                        # I/O wait is treated as idle; other reported categories
+                        # (user, system, IRQ, softirq, nice) count as busy.
+                        io_wait = values.get("io", 0.0)
+                        usage = max(0.0, min(100.0, 100.0 - idle - io_wait))
+                        data["cpu_usage"] = round(usage, 2)
         elif name in {"version", "board"}:
             # Some firmware exposes model/board identity in these files rather than mca-status.
             self._identify_device(data, output)
