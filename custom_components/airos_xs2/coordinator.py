@@ -30,6 +30,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
         self.username = username
         self.password = password
         self.device_name = name
+        self._previous_cpu_stats = None
 
         super().__init__(
             hass,
@@ -71,7 +72,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 probes = (
                     ("uptime", "cat /proc/uptime"),
                     ("meminfo", "cat /proc/meminfo"),
-                    ("loadavg", "cat /proc/loadavg"),
+                    ("cpu_stat", "cat /proc/stat"),
                     ("cpuinfo", "cat /proc/cpuinfo"),
                     ("version", "cat /etc/version"),
                     ("board", "cat /etc/board.info"),
@@ -200,11 +201,32 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             ):
                 if source in values:
                     data[target] = values[source]
-        elif name == "loadavg":
-            fields = output.split()
-            if len(fields) >= 3:
-                for index, key in enumerate(("load_1m", "load_5m", "load_15m")):
-                    data[key] = _number(fields[index])
+        elif name == "cpu_stat":
+            # /proc/stat exposes cumulative CPU time counters. Compare consecutive
+            # samples to calculate actual utilisation rather than load average.
+            lines = output.splitlines()
+            fields = lines[0].split() if lines else []
+            if fields and fields[0] == "cpu" and len(fields) >= 5:
+                try:
+                    counters = [int(value) for value in fields[1:9]]
+                except ValueError:
+                    counters = []
+
+                if len(counters) >= 4:
+                    total = sum(counters)
+                    idle = counters[3]
+                    if len(counters) >= 5:
+                        idle += counters[4]  # Treat I/O wait as idle time.
+
+                    previous = self._previous_cpu_stats
+                    self._previous_cpu_stats = (total, idle)
+                    if previous is not None:
+                        total_delta = total - previous[0]
+                        idle_delta = idle - previous[1]
+                        if total_delta > 0 and 0 <= idle_delta <= total_delta:
+                            data["cpu_usage"] = round(
+                                100 * (total_delta - idle_delta) / total_delta, 2
+                            )
         elif name in {"version", "board"}:
             # Some firmware exposes model/board identity in these files rather than mca-status.
             self._identify_device(data, output)
