@@ -459,9 +459,11 @@ class AiRXS2Sensor(SensorEntity):
             self._device_name = f"{device_label}-Wireless"
         else:
             self._device_name = device_label
+        # Keep existing descriptive names, but omit a leading "AirOS" brand prefix.
+        clean_display_name = re.sub(r"^AirOS(?:\s+|$)", "", self._display_name, count=1, flags=re.IGNORECASE).strip()
         self._attr_name = (
             "Devicename" if key == "side_devicename"
-            else f"{self._display_name} {label or key}"
+            else " ".join(part for part in (clean_display_name, label or key) if part)
         )
         self._attr_unique_id = f"{entry.data['host']}_{key}" + (
             f"_{unique_id_suffix}" if unique_id_suffix else ""
