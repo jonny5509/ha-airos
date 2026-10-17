@@ -209,13 +209,37 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
         data["firmware_upgrade_latest_version"] = "4.0.4.5074"
         data["firmware_upgrade_source"] = "https://ui.com/download/airmax-legacy"
 
-        if data.get("device_model") != "NanoStation5":
+        # Some legacy builds expose the model only as a platform string, or
+        # identify it as XS5 rather than NanoStation5. Accept those equivalent
+        # identifiers instead of reporting Unknown for a supported device.
+        model_text = " ".join(
+            str(data.get(key) or "")
+            for key in ("device_model", "platform", "firmwareVersion")
+        )
+        compact_model = re.sub(r"[^a-z0-9]", "", model_text.lower())
+        is_nanostation5 = (
+            data.get("device_model") == "NanoStation5"
+            or "nanostation5" in compact_model
+            or bool(re.search(r"\b(?:xs5|ns5)\b", model_text, re.IGNORECASE))
+        )
+        if not is_nanostation5:
             data["firmware_upgrade"] = "Unknown"
             data["firmware_upgrade_reason"] = "No verified firmware catalog entry for this device model."
             return
 
         installed = str(data.get("firmwareVersion") or "")
-        match = re.search(r"v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?", installed, re.IGNORECASE)
+        # Firmware strings can include platform and build-date suffixes, e.g.
+        # XS5.ar2313.v4.0.4.5074.111219.2126. Prefer the four-part version
+        # (including build number) when available.
+        matches = list(re.finditer(
+            r"v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?",
+            installed,
+            re.IGNORECASE,
+        ))
+        match = next(
+            (candidate for candidate in reversed(matches) if candidate.group(4) is not None),
+            matches[-1] if matches else None,
+        )
         if not match:
             data["firmware_upgrade"] = "Unknown"
             data["firmware_upgrade_reason"] = "Installed firmware version could not be parsed."
