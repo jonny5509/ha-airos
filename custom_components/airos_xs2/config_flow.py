@@ -2,6 +2,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from .const import DOMAIN
 
+
 class AiRXS2ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
@@ -16,7 +17,7 @@ class AiRXS2ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Required("name"): str,
+                    vol.Required("name", default="AirOS"): str,
                     vol.Required("host"): str,
                     vol.Required("username"): str,
                     vol.Required("password"): str,
