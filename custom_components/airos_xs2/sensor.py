@@ -191,7 +191,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                     AiRXS2Sensor(
                         coordinator, entry, key, unit, label,
                         display_name=display_name, device_kind=_device_kind(key),
-                    parent_device_id=parent_device.id,
+                        parent_device_id=parent_device.id,
                     )
                 )
             added_keys.add(key)
@@ -202,6 +202,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 AiRXS2Sensor(
                     coordinator, entry, key, None, _friendly_name(key),
                     display_name=display_name, device_kind=_device_kind(key),
+                    parent_device_id=parent_device.id,
                 )
             )
 
