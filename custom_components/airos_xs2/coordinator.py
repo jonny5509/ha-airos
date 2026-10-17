@@ -1,3 +1,4 @@
+import asyncio
 import asyncssh
 import logging
 import re
@@ -84,6 +85,15 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                     try:
                         result = await self._run_command(conn, command)
                         self._parse_probe(name, result, data)
+
+                        # Very old airOS kernels (including XS5 v4.x) expose only
+                        # four /proc/stat counters. The first sample establishes a
+                        # baseline, so take a second sample immediately rather than
+                        # leaving CPU Usage unknown until the next HA polling cycle.
+                        if name == "cpu_stat" and "cpu_usage" not in data:
+                            await asyncio.sleep(1)
+                            second_sample = await self._run_command(conn, "cat /proc/stat")
+                            self._parse_probe("cpu_stat", second_sample, data)
                     except Exception as err:
                         _LOGGER.debug("airOS probe %s unavailable: %s", name, err)
 
