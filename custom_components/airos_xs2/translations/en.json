@@ -2,6 +2,7 @@
   "config": {
     "step": {
       "user": {
+        "title": "Set up AirOS Device",
         "data": {
           "name": "Title",
           "host": "Host",
