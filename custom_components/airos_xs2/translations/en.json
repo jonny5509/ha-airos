@@ -9,6 +9,11 @@
           "host": "Host",
           "username": "Username",
           "password": "Password"
+        },
+        "data_description": {
+          "host": "Set up your AirOS device. This integration communicates with your device over an SSH connection. Enter your device's host address and login credentials to get started.",
+          "username": "The username used to log in to your AirOS device over SSH.",
+          "password": "The password used to log in to your AirOS device over SSH."
         }
       }
     },
