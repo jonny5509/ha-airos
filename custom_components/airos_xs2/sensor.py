@@ -140,7 +140,8 @@ def _device_kind(key):
     # Keep the single canonical uptime sensor on the main device.
     if key == "uptime_seconds":
         return "main"
-    if normalized.startswith("ethernet_") or normalized == "ethernet_mac":
+    # Legacy AirOS keys may call the wired interface "lan" or "eth".
+    if normalized.startswith(("ethernet_", "lan", "eth")) or normalized == "ethernet_mac":
         return "ethernet"
     return "main"
 
