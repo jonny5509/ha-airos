@@ -79,6 +79,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                     ("version", "cat /etc/version"),
                     ("board", "cat /etc/board.info"),
                     ("ifconfig", "ifconfig"),
+                    ("iwconfig", "iwconfig"),
                     ("netdev", "cat /proc/net/dev"),
                 )
                 for name, command in probes:
@@ -357,16 +358,36 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 if not ip:
                     ip = re.search(r"\binet ([0-9.]+)", block)
                 if ip:
-                    data.setdefault("ip_address", ip.group(1))
+                    data.setdefault(f"{prefix}_ip_address", ip.group(1))
+                    if is_wireless or "ip_address" not in data:
+                        data["ip_address"] = ip.group(1)
 
                 flags = re.search(r"<([^>]+)>", block)
                 if flags:
-                    state = "up" if "UP" in flags.group(1).split(",") else "down"
+                    flag_set = set(flags.group(1).split(","))
+                    state = "up" if "UP" in flag_set else "down"
                     data.setdefault(f"{prefix}_interface_state", state)
+                    if is_ethernet:
+                        data.setdefault("ethernet_link_detected", "Plugged in" if "RUNNING" in flag_set else "Disconnected")
                 elif re.search(r"(?m)^\s*UP(?:\s|$)", block):
                     data.setdefault(f"{prefix}_interface_state", "up")
                 elif re.search(r"(?m)^\s*DOWN(?:\s|$)", block):
                     data.setdefault(f"{prefix}_interface_state", "down")
+
+        elif name == "iwconfig":
+            # Read wireless association status where the legacy tool is available.
+            blocks = re.split(r"(?m)^(?=[A-Za-z0-9_.:-]+\\s+)", output)
+            for block in blocks:
+                heading = re.match(r"^([A-Za-z0-9_.:-]+)\\s+", block)
+                if not heading or not heading.group(1).lower().startswith(("wlan", "ath")):
+                    continue
+                association = re.search(r"Access Point:\\s*([0-9A-Fa-f:]{17}|Not-Associated)", block, re.IGNORECASE)
+                if association:
+                    ap = association.group(1)
+                    data["wireless_link_detected"] = "Connected to one AP" if ap.lower() != "not-associated" and ap != "00:00:00:00:00:00" else "Disconnected"
+                essid = re.search(r'ESSID:"([^"]*)"', block)
+                if essid and essid.group(1):
+                    data.setdefault("essid", essid.group(1))
 
         elif name == "netdev":
             # Prefer physical interfaces to bridge aliases, avoiding br0 counters
@@ -378,7 +399,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 interface, stats = line.split(":", 1)
                 interface = interface.strip().lower()
                 values = stats.split()
-                if len(values) < 9:
+                if len(values) < 16:
                     continue
                 if interface.startswith(("wlan", "ath")):
                     prefix, priority = "wireless", 2
@@ -389,14 +410,18 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 else:
                     continue
                 try:
-                    rx_bytes = int(values[0])
-                    tx_bytes = int(values[8])
+                    rx_bytes, rx_packets, rx_errors = int(values[0]), int(values[1]), int(values[2])
+                    tx_bytes, tx_packets, tx_errors = int(values[8]), int(values[9]), int(values[10])
                 except (TypeError, ValueError):
                     _LOGGER.debug("Skipping malformed /proc/net/dev row: %s", line)
                     continue
                 previous = counters.get(prefix)
                 if previous is None or priority > previous[0]:
-                    counters[prefix] = (priority, rx_bytes, tx_bytes)
-            for prefix, (_, rx_bytes, tx_bytes) in counters.items():
+                    counters[prefix] = (priority, rx_bytes, rx_packets, rx_errors, tx_bytes, tx_packets, tx_errors)
+            for prefix, (_, rx_bytes, rx_packets, rx_errors, tx_bytes, tx_packets, tx_errors) in counters.items():
                 data[f"{prefix}_rx_bytes"] = rx_bytes
+                data[f"{prefix}_rx_packets"] = rx_packets
+                data[f"{prefix}_rx_errors"] = rx_errors
                 data[f"{prefix}_tx_bytes"] = tx_bytes
+                data[f"{prefix}_tx_packets"] = tx_packets
+                data[f"{prefix}_tx_errors"] = tx_errors
