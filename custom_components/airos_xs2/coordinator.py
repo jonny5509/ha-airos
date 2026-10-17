@@ -99,6 +99,30 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 key, value = line.strip().split("=", 1)
                 data[key] = value.strip()
 
+        # Some legacy AirOS versions bundle identity metadata into side_devicename,
+        # e.g. "UBNT,deviceId=...,firmwareVersion=...,platform=...,deviceIp=...".
+        # Split those fields into their own values so Home Assistant can expose
+        # them as individual sensors instead of hiding them in the name sensor.
+        for key, value in list(data.items()):
+            if key.lower() != "side_devicename":
+                continue
+            parts = [part.strip() for part in value.split(",")]
+            data[key] = parts[0] or "AirOS Device"
+            metadata_keys = {
+                "deviceid": "deviceId",
+                "firmwareversion": "firmwareVersion",
+                "platform": "platform",
+                "deviceip": "deviceIp",
+            }
+            for part in parts[1:]:
+                if "=" not in part:
+                    continue
+                metadata_key, metadata_value = part.split("=", 1)
+                canonical_key = metadata_keys.get(metadata_key.strip().lower())
+                metadata_value = metadata_value.strip()
+                if canonical_key and metadata_value:
+                    data.setdefault(canonical_key, metadata_value)
+
         # Identify hardware from metadata commonly exposed by different airOS builds.
         self._identify_device(data, output)
 
