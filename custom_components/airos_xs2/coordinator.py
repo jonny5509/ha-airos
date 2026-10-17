@@ -255,6 +255,15 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             ):
                 if source in values:
                     data[target] = values[source]
+
+            # Report a single percentage-based RAM sensor. Prefer MemAvailable,
+            # which accounts for reclaimable cache; older kernels may only expose
+            # MemFree, so use that as a fallback.
+            total = data.get("mem_total_bytes")
+            available = data.get("mem_available_bytes", data.get("mem_free_bytes"))
+            if total and available is not None and total > 0:
+                used_percent = (total - available) / total * 100
+                data["ram_usage_percent"] = round(max(0.0, min(100.0, used_percent)), 2)
         elif name == "cpu_stat":
             # /proc/stat exposes cumulative CPU time counters. Compare consecutive
             # samples to calculate actual utilisation rather than load average.
