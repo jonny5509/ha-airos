@@ -67,6 +67,9 @@ The exact entities available depend on the AirOS firmware and which optional sys
 | CPU Usage | CPU usage, when supported |
 | RAM Usage | Memory usage; available memory counters are provided as attributes when supported |
 | Ethernet Bytes Received / Sent | Ethernet byte counters, when supported |
+| Ethernet Packets Received / Sent | Packet counters from `/proc/net/dev`, when supported |
+| Ethernet Receive / Transmit Errors | Kernel-reported Ethernet errors, when supported |
+| Ethernet Received / Transmit Packets Dropped | Kernel-reported dropped packet counters, when supported |
 | Wireless Bytes Received / Sent | Wireless byte counters, when supported |
 | Device information | Hostname, IP/MAC addresses, hardware/platform details, firmware version, and other reported fields when available |
 | Firmware Upgrade | Best-effort firmware upgrade information, when the device supports the probe |

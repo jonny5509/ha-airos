@@ -32,6 +32,12 @@ OPTIONAL_SENSORS = {
     "ram_usage_percent": ("RAM Usage", "%"),
     "ethernet_rx_bytes": ("Ethernet Bytes Received", "B"),
     "ethernet_tx_bytes": ("Ethernet Bytes Sent", "B"),
+    "ethernet_rx_packets": ("Ethernet Packets Received", None),
+    "ethernet_tx_packets": ("Ethernet Packets Sent", None),
+    "ethernet_rx_errors": ("Ethernet Receive Errors", None),
+    "ethernet_tx_errors": ("Ethernet Transmit Errors", None),
+    "ethernet_rx_dropped": ("Ethernet Received Packets Dropped", None),
+    "ethernet_tx_dropped": ("Ethernet Transmit Packets Dropped", None),
     "wireless_rx_bytes": ("Wireless Bytes Received", "B"),
     "wireless_tx_bytes": ("Wireless Bytes Sent", "B"),
 }
@@ -122,6 +128,12 @@ SENSOR_NAME_OVERRIDES = {
     "ram_usage_percent": "RAM Usage",
     "ethernet_rx_bytes": "Ethernet Bytes Received",
     "ethernet_tx_bytes": "Ethernet Bytes Sent",
+    "ethernet_rx_packets": "Ethernet Packets Received",
+    "ethernet_tx_packets": "Ethernet Packets Sent",
+    "ethernet_rx_errors": "Ethernet Receive Errors",
+    "ethernet_tx_errors": "Ethernet Transmit Errors",
+    "ethernet_rx_dropped": "Ethernet Received Packets Dropped",
+    "ethernet_tx_dropped": "Ethernet Transmit Packets Dropped",
     "wireless_rx_bytes": "Wireless Bytes Received",
     "wireless_tx_bytes": "Wireless Bytes Sent",
     "deviceId": "Device ID",
@@ -462,8 +474,13 @@ class AiRXS2Sensor(SensorEntity):
                      "wireless_rx_bytes", "wireless_tx_bytes"}:
             self._attr_device_class = SensorDeviceClass.DATA_SIZE
 
-        if key in {"ethernet_rx_bytes", "ethernet_tx_bytes",
-                   "wireless_rx_bytes", "wireless_tx_bytes"}:
+        if key in {
+            "ethernet_rx_bytes", "ethernet_tx_bytes",
+            "wireless_rx_bytes", "wireless_tx_bytes",
+            "ethernet_rx_packets", "ethernet_tx_packets",
+            "ethernet_rx_errors", "ethernet_tx_errors",
+            "ethernet_rx_dropped", "ethernet_tx_dropped",
+        }:
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         elif key in {"signal", "noise", "ccq", "snr", "wlanTxRate", "wlanRxRate",
                      "frequency", "cpu_usage",
