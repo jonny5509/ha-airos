@@ -11,6 +11,9 @@
           "password": "Password"
         }
       }
+    },
+    "abort": {
+      "already_configured": "This AirOS host is already configured."
     }
   }
 }
