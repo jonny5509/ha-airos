@@ -73,6 +73,8 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                     ("meminfo", "cat /proc/meminfo"),
                     ("loadavg", "cat /proc/loadavg"),
                     ("cpuinfo", "cat /proc/cpuinfo"),
+                    ("version", "cat /etc/version"),
+                    ("board", "cat /etc/board.info"),
                     ("ifconfig", "ifconfig"),
                     ("netdev", "cat /proc/net/dev"),
                 )
@@ -96,6 +98,9 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             if "=" in line:
                 key, value = line.strip().split("=", 1)
                 data[key] = value.strip()
+
+        # Identify hardware from metadata commonly exposed by different airOS builds.
+        self._identify_device(data, output)
 
         # Expose only one canonical uptime sensor, populated by the procfs probe.
         # airOS firmware may also report uptime-like keys in mca-status; discard
@@ -125,6 +130,31 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             data.pop("snr", None)
         return data
 
+    @staticmethod
+    def _identify_device(data, extra_output=""):
+        """Infer a readable model from airOS metadata and legacy system files."""
+        identity_keys = {
+            "platform", "deviceid", "board", "boardname", "board_name",
+            "product", "productname", "model", "devicemodel", "hardware",
+        }
+        parts = [extra_output]
+        for key, value in data.items():
+            if key.lower() in identity_keys or key.lower() in {"firmwareversion", "cpu_model"}:
+                parts.append(str(value))
+        identity = " ".join(parts)
+        compact = re.sub(r"[^a-z0-9]", "", identity.lower())
+        # Match the requested original NanoStation models before generic platform names.
+        if re.search(r"nanostation\s*2|\bns2\b", identity, re.IGNORECASE) or "nanostation2" in compact:
+            data["device_model"] = "NanoStation2"
+        elif re.search(r"nanostation\s*5|\bns5\b", identity, re.IGNORECASE) or "nanostation5" in compact:
+            data["device_model"] = "NanoStation5"
+        else:
+            for key in ("platform", "deviceId", "board", "board_name", "product", "model", "cpu_model"):
+                value = data.get(key)
+                if value and str(value).strip():
+                    data["device_model"] = str(value).strip()
+                    break
+
     def _parse_probe(self, name, output, data):
         if not output:
             return
@@ -151,6 +181,10 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             if len(fields) >= 3:
                 for index, key in enumerate(("load_1m", "load_5m", "load_15m")):
                     data[key] = _number(fields[index])
+        elif name in {"version", "board"}:
+            # Some firmware exposes model/board identity in these files rather than mca-status.
+            data[f"_{name}_identity"] = output.strip()[:500]
+            self._identify_device(data, output)
         elif name == "cpuinfo":
             for line in output.splitlines():
                 if ":" in line and line.split(":", 1)[0].strip().lower() in (
@@ -159,6 +193,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                     value = line.split(":", 1)[1].strip()
                     if value:
                         data["cpu_model"] = value
+                        self._identify_device(data)
                         break
         elif name == "ifconfig":
             # Parse each interface separately; order varies by firmware.
