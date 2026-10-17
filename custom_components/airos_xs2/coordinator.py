@@ -97,7 +97,12 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
         for line in output.splitlines():
             if "=" in line:
                 key, value = line.strip().split("=", 1)
-                data[key] = value.strip()
+                value = value.strip()
+                # Some legacy AirOS versions append discovery metadata to this
+                # field; keep the sensor state limited to the actual device name.
+                if key.lower() == "side_devicename":
+                    value = value.split(",", 1)[0].strip()
+                data[key] = value
 
         # Identify hardware from metadata commonly exposed by different airOS builds.
         self._identify_device(data, output)
