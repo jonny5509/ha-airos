@@ -224,6 +224,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
             )
             added_keys.add(key)
 
+    # Firmware detail fields are attributes of the single Firmware Upgrade sensor,
+    # not separate entities of their own.
+    added_keys.update(key for key in data if key.startswith("firmware_upgrade_"))
+
     for key, value in data.items():
         if key not in added_keys and value not in (None, ""):
             sensors.append(
