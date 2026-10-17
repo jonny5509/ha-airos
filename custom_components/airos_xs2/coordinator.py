@@ -183,7 +183,6 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                     data[key] = _number(fields[index])
         elif name in {"version", "board"}:
             # Some firmware exposes model/board identity in these files rather than mca-status.
-            data[f"_{name}_identity"] = output.strip()[:500]
             self._identify_device(data, output)
         elif name == "cpuinfo":
             for line in output.splitlines():
