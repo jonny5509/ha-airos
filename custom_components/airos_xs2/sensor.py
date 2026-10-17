@@ -281,13 +281,22 @@ async def async_setup_entry(hass, entry, async_add_entities):
         "mem_free_bytes",
         "mem_available_bytes",
     }
+    # Older versions could leave both wireless_mac and wlanMac entities in
+    # the registry even though they represent the same interface MAC. Once
+    # AirOS supplies its canonical wlanMac value, remove the obsolete alias
+    # so upgrades do not leave duplicate Wireless MAC Address sensors behind.
+    obsolete_alias_keys = (
+        {"wireless_mac"}
+        if data.get("wlanMac") not in (None, "")
+        else set()
+    )
     host_prefix = f"{host}_"
     for entity in list(entity_registry.entities.values()):
         if entity.config_entry_id != entry.entry_id:
             continue
         if entity.unique_id.startswith(host_prefix):
             old_key = entity.unique_id[len(host_prefix):]
-            if old_key in obsolete_memory_keys:
+            if old_key in obsolete_memory_keys or old_key in obsolete_alias_keys:
                 entity_registry.async_remove(entity.entity_id)
 
     for entity in entity_registry.entities.values():
