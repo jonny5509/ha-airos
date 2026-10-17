@@ -14,7 +14,7 @@ Connects Home Assistant to AirOS devices over SSH and exposes wireless link qual
 - Network connectivity from Home Assistant to the device.
 - HACS (optional, for HACS installation).
 
-Older AirOS firmware may require legacy SSH algorithms. Use this integration only on a trusted network and consider the security implications of enabling older SSH compatibility.
+The integration first attempts standard SSH algorithms and retries with legacy algorithms only when negotiation fails. For compatibility with very old AirOS firmware, SSH host-key verification is disabled. This makes the connection vulnerable to man-in-the-middle attacks; use it only on a trusted, isolated management network and never expose device SSH to the internet.
 
 ## Installation
 
@@ -112,9 +112,13 @@ Remember to remove or reduce debug logging after troubleshooting.
 
 ## Compatibility
 
-- Intended for legacy Ubiquiti AirOS devices, including AirOS 4.x.
-- Uses SSH polling of `mca-status` and best-effort device probes.
+- Intended for legacy Ubiquiti AirOS devices, including AirOS 4.x; exact sensors depend on firmware and hardware.
+- Prefers standard SSH negotiation, with a legacy-algorithm fallback for older devices.
+- Parses both legacy and newer common `ifconfig` formats and recognizes common legacy wireless/wired interface names.
+- Optional system probes are best-effort; unsupported commands do not invalidate otherwise successful `mca-status` polling.
 - HACS compatible.
+
+Compatibility improvements are based on known AirOS output patterns and have not been validated against every hardware model or firmware release. Please include a redacted diagnostics export when reporting model-specific issues.
 
 ## License
 

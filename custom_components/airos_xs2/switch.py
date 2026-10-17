@@ -1,7 +1,12 @@
+import asyncio
 import asyncssh
+import logging
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _display_name(raw_name):
@@ -35,16 +40,25 @@ class AiRXS2RebootSwitch(SwitchEntity):
         )
 
     async def async_turn_on(self, **kwargs):
-        async with asyncssh.connect(
-            self.coordinator.host,
-            username=self.coordinator.username,
-            password=self.coordinator.password,
-            known_hosts=None,
-            kex_algs=["diffie-hellman-group1-sha1"],
-            encryption_algs=["aes128-cbc"],
-            server_host_key_algs=["ssh-rsa"],
-        ) as conn:
-            await conn.run("reboot")
+        # Reuse the coordinator's modern-first / legacy-fallback SSH connection.
+        async with self.coordinator._connect() as conn:
+            try:
+                result = await conn.run("reboot", check=False, timeout=5)
+            except (asyncssh.Error, OSError, asyncio.TimeoutError) as err:
+                # A successful reboot commonly drops SSH before it can return an
+                # exit status. Authentication and connection setup errors happen
+                # outside this block and still surface to Home Assistant.
+                _LOGGER.debug(
+                    "SSH closed while reboot was running; device may be rebooting: %s",
+                    err,
+                )
+                return
+
+            if result.exit_status not in (None, 0):
+                detail = (result.stderr or "").strip()
+                raise HomeAssistantError(
+                    f"AirOS reboot command failed (exit {result.exit_status}): {detail}"
+                )
 
     async def async_turn_off(self, **kwargs):
         pass

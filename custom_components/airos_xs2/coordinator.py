@@ -1,7 +1,9 @@
 import asyncio
 import asyncssh
 import logging
+import math
 import re
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.core import HomeAssistant
@@ -20,9 +22,10 @@ def _to_text(val) -> str:
 
 def _number(value, default=None):
     try:
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError):
         return default
+    return number if math.isfinite(number) else default
 
 
 class AiRXS2Coordinator(DataUpdateCoordinator):
@@ -43,15 +46,54 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
     async def _run_command(self, conn, command):
         """Run a read-only command without relying on completed-result attributes."""
         async with conn.create_process(command) as proc:
-            stdout = await proc.stdout.read()
-            stderr = await proc.stderr.read()
-            await proc.wait()
+            # Drain both SSH streams concurrently. Reading stdout to completion
+            # before stderr can deadlock if an older BusyBox command fills stderr.
+            stdout, stderr = await asyncio.wait_for(
+                asyncio.gather(proc.stdout.read(), proc.stderr.read()),
+                timeout=15,
+            )
+            await asyncio.wait_for(proc.wait(), timeout=5)
         output = _to_text(stdout)
         return output if output.strip() else _to_text(stderr)
 
-    async def _async_update_data(self):
+    @staticmethod
+    def _is_legacy_algorithm_error(error):
+        """Identify SSH negotiation failures that can benefit from legacy algorithms."""
+        message = str(error).lower()
+        error_name = type(error).__name__.lower()
+        terms = (
+            "no matching key exchange",
+            "no matching encryption",
+            "no matching server host key",
+            "no matching mac",
+            "algorithm negotiation failed",
+            "unable to negotiate",
+        )
+        return (
+            "negotiation" in error_name
+            or "keyexchangefailed" in error_name
+            or any(term in message for term in terms)
+        )
+
+    @asynccontextmanager
+    async def _connect(self):
+        """Prefer secure defaults; use old AirOS SSH algorithms only when required."""
+        manager = asyncssh.connect(
+            self.host,
+            username=self.username,
+            password=self.password,
+            known_hosts=None,
+        )
         try:
-            async with asyncssh.connect(
+            conn = await manager.__aenter__()
+        except Exception as err:
+            if not self._is_legacy_algorithm_error(err):
+                raise
+            _LOGGER.debug(
+                "Modern SSH negotiation failed for %s; retrying with legacy AirOS algorithms",
+                self.host,
+            )
+            manager = asyncssh.connect(
                 self.host,
                 username=self.username,
                 password=self.password,
@@ -59,7 +101,20 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 kex_algs=["diffie-hellman-group1-sha1"],
                 encryption_algs=["aes128-cbc"],
                 server_host_key_algs=["ssh-rsa"],
-            ) as conn:
+            )
+            conn = await manager.__aenter__()
+
+        try:
+            yield conn
+        except BaseException as err:
+            await manager.__aexit__(type(err), err, err.__traceback__)
+            raise
+        else:
+            await manager.__aexit__(None, None, None)
+
+    async def _async_update_data(self):
+        try:
+            async with self._connect() as conn:
                 output = await self._run_command(conn, "mca-status")
                 if "=" not in output:
                     raise UpdateFailed(
@@ -178,42 +233,103 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
 
     @staticmethod
     def _identify_device(data, extra_output=""):
-        """Infer a readable model from airOS metadata and legacy system files."""
+        """Infer a model from AirOS metadata and legacy system files."""
         identity_keys = {
             "platform", "deviceid", "board", "boardname", "board_name",
             "product", "productname", "model", "devicemodel", "hardware",
         }
         parts = [extra_output]
         for key, value in data.items():
-            if key.lower() in identity_keys or key.lower() in {"firmwareversion", "cpu_model"}:
+            if key.lower() in identity_keys or key.lower() in {
+                "firmwareversion", "cpu_model"
+            }:
                 parts.append(str(value))
         identity = " ".join(parts)
         compact = re.sub(r"[^a-z0-9]", "", identity.lower())
-        # Match the requested original NanoStation models before generic platform names.
-        if re.search(r"nanostation\s*2|\bns2\b|\bxs2\b", identity, re.IGNORECASE) or "nanostation2" in compact or "xs2" in compact:
+
+        # Preserve the historical display labels for the original XS2/XS5
+        # hardware, which often identifies itself only by board code.
+        if (
+            re.search(r"nanostation\s*2(?![a-z0-9])|\bns2\b|\bxs2\b", identity, re.IGNORECASE)
+            or "nanostation2" in compact
+            or "xs2" in compact
+        ):
             data["device_model"] = "NanoStation2"
-        elif re.search(r"nanostation\s*5|\bns5\b|\bxs5\b", identity, re.IGNORECASE) or "nanostation5" in compact or "xs5" in compact:
+            return
+        if (
+            re.search(r"nanostation\s*5(?![a-z0-9])|\bns5\b|\bxs5\b", identity, re.IGNORECASE)
+            or "nanostation5" in compact
+            or "xs5" in compact
+        ):
             data["device_model"] = "NanoStation5"
-        else:
-            for key in ("platform", "deviceId", "board", "board_name", "product", "model", "cpu_model"):
-                value = data.get(key)
-                if value and str(value).strip():
-                    data["device_model"] = str(value).strip()
-                    break
+            return
+
+        # Recognize common AirOS product families without pretending they are
+        # NanoStation XS2/XS5. Keep M-series suffixes distinct from legacy models.
+        model_patterns = (
+            (r"nano\s*station\s*loco\s*m?2|nanostationloco[m]?2", "NanoStation Loco M2"),
+            (r"nano\s*station\s*loco\s*m?5|nanostationloco[m]?5", "NanoStation Loco M5"),
+            (r"nano\s*station\s*m2|nanostationm2", "NanoStation M2"),
+            (r"nano\s*station\s*m5|nanostationm5", "NanoStation M5"),
+            (r"power\s*station\s*2|powerstation2|\bps2\b", "PowerStation2"),
+            (r"power\s*station\s*5|powerstation5|\bps5\b", "PowerStation5"),
+            (r"pico\s*station\s*2|picostation2", "PicoStation2"),
+            (r"pico\s*station\s*5|picostation5", "PicoStation5"),
+            (r"bullet\s*m?2|bulletm2", "Bullet M2"),
+            (r"bullet\s*m?5|bulletm5", "Bullet M5"),
+            (r"rocket\s*m2|rocketm2", "Rocket M2"),
+            (r"rocket\s*m5|rocketm5", "Rocket M5"),
+            (r"airgrid\s*m2|airgridm2", "AirGrid M2"),
+            (r"airgrid\s*m5|airgridm5", "AirGrid M5"),
+            (r"nanobridge\s*m5|nanobridgem5", "NanoBridge M5"),
+        )
+        for pattern, model in model_patterns:
+            if re.search(pattern, identity, re.IGNORECASE) or re.search(pattern, compact, re.IGNORECASE):
+                data["device_model"] = model
+                return
+
+        # Fall back to the best available platform/product identifier. Some
+        # old boards expose only short codes such as XM/XW; keep those rather
+        # than guessing a retail model name.
+        for key in ("productname", "product", "model", "devicemodel"):
+            value = data.get(key)
+            if value and str(value).strip():
+                data["device_model"] = str(value).strip()
+                return
+
+        # Platform/board fields often contain chipset codes (XM, XW, AR231x)
+        # rather than a retail model. Don't replace a user's device name with
+        # a chipset label when the firmware doesn't identify the exact product.
+        for key in ("platform", "boardname", "board_name", "board"):
+            value = data.get(key)
+            if not value:
+                continue
+            candidate = str(value).strip()
+            compact_candidate = re.sub(r"[^a-z0-9]", "", candidate.lower())
+            if compact_candidate in {
+                "xm", "xw", "ar2313", "ar2315", "ar2316",
+                "ar7240", "ar7241", "ar7242", "ar9342", "ar9344",
+            }:
+                continue
+            if candidate:
+                data["device_model"] = candidate
+                return
 
     @staticmethod
     def _update_firmware_upgrade_status(data):
         """Compare supported legacy NanoStation5 firmware with Ubiquiti's published release."""
         # Ubiquiti's published final legacy NanoStation5 release is v4.0.4
-        # build 5074. Do not extrapolate this catalog entry to other models.
-        data["firmware_upgrade_latest_version"] = "4.0.4.5074"
-        data["firmware_upgrade_source"] = "https://ui.com/download/airmax-legacy"
-
+        # build 5074. Do not expose this catalog entry for other models.
         if data.get("device_model") != "NanoStation5":
+            data.pop("firmware_upgrade_latest_version", None)
+            data.pop("firmware_upgrade_source", None)
+            data.pop("firmware_upgrade_installed_version", None)
             data["firmware_upgrade"] = "Unknown"
             data["firmware_upgrade_reason"] = "No verified firmware catalog entry for this device model."
             return
 
+        data["firmware_upgrade_latest_version"] = "4.0.4.5074"
+        data["firmware_upgrade_source"] = "https://ui.com/download/airmax-legacy"
         installed = str(data.get("firmwareVersion") or "")
         match = re.search(r"v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?", installed, re.IGNORECASE)
         if not match:
@@ -334,28 +450,40 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                         self._identify_device(data)
                         break
         elif name == "ifconfig":
-            # Parse each interface separately; order varies by firmware.
-            # Legacy airOS commonly uses ath0/wlan0, eth0, and br0.
-            blocks = re.split(r"(?m)^(?=[A-Za-z0-9_.:-]+\s+Link encap:)", output)
+            # Parse both old net-tools output ("Link encap:") and newer
+            # BusyBox output ("eth0: flags=..."). Interface order differs across
+            # AirOS releases, so don't depend on a fixed order.
+            blocks = re.split(
+                r"(?m)^(?=[A-Za-z0-9_.:-]+(?:\s+Link encap:|:?\s+flags=|:\s*flags=))",
+                output,
+            )
             for block in blocks:
-                heading = re.match(r"^([A-Za-z0-9_.:-]+)\s+Link encap:", block)
+                heading = re.match(
+                    r"^([A-Za-z0-9_.:-]+)(?:\s+Link encap:|:?\s+flags=|:\s*flags=)",
+                    block,
+                )
                 if not heading:
                     continue
                 interface = heading.group(1).lower()
-                is_wireless = interface.startswith(("wlan", "ath"))
-                is_ethernet = interface.startswith(("eth", "br"))
+                is_wireless = interface.startswith(("wlan", "ath", "wifi", "ra"))
+                is_ethernet = interface.startswith(("eth", "br", "lan"))
                 if not (is_wireless or is_ethernet):
                     continue
 
                 prefix = "wireless" if is_wireless else "ethernet"
-                mac = re.search(r"(?:HWaddr|ether)\s+([0-9A-Fa-f:]{17})", block)
+                mac = re.search(
+                    r"(?:HWaddr|ether)\s+([0-9A-Fa-f:]{17})",
+                    block,
+                    re.IGNORECASE,
+                )
                 if mac:
                     data.setdefault(f"{prefix}_mac", mac.group(1))
                     if is_wireless:
                         data.setdefault("wlanMac", mac.group(1))
+
                 ip = re.search(r"inet addr:([0-9.]+)", block)
                 if not ip:
-                    ip = re.search(r"\binet ([0-9.]+)", block)
+                    ip = re.search(r"\binet\s+(?:addr:)?([0-9.]+)", block)
                 if ip:
                     data.setdefault("ip_address", ip.group(1))
 
@@ -380,7 +508,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 values = stats.split()
                 if len(values) < 9:
                     continue
-                if interface.startswith(("wlan", "ath")):
+                if interface.startswith(("wlan", "ath", "wifi", "ra")):
                     prefix, priority = "wireless", 2
                 elif interface.startswith("eth"):
                     prefix, priority = "ethernet", 2
