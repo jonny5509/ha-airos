@@ -210,6 +210,27 @@ async def async_setup_entry(hass, entry, async_add_entities):
         model=f"{device_label} Wireless",
         via_device=(DOMAIN, host),
     )
+
+    # async_get_or_create does not rename an already-existing registry entry.
+    # Explicitly refresh names and model metadata so upgrades correct old labels.
+    device_registry.async_update_device(
+        parent_device.id,
+        name=device_label,
+        manufacturer="Ubiquiti",
+        model=detected_model or "Ubiquiti AirOS",
+    )
+    device_registry.async_update_device(
+        wireless_device.id,
+        name=wireless_device_name,
+        manufacturer="Ubiquiti",
+        model=f"{device_label} Wireless",
+    )
+    device_registry.async_update_device(
+        ethernet_device.id,
+        name=ethernet_device_name,
+        manufacturer="Ubiquiti",
+        model=f"{device_label} Ethernet",
+    )
     entity_registry = er.async_get(hass)
 
     # Remove registry entries left behind by older releases that exposed raw
