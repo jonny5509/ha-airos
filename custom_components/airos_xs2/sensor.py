@@ -155,19 +155,40 @@ def _friendly_name(key):
 
 
 def _device_kind(key):
-    """Return the Home Assistant device that should own this sensor."""
+    """Return the Home Assistant device that should own this sensor.
+
+    AirOS firmware generations use different names for the same interfaces:
+    newer builds commonly expose wlan/eth names, while older builds may use
+    ath, lan, or bridge-interface names. Unknown keys stay on the main device.
+    """
     normalized = key.lower()
-    # Check WLAN first because "lan" is also present inside "wlan".
-    if normalized.startswith(("wlan", "wireless_")) or key in BASE_SENSORS or key in {
-        "essid", "frequency", "wireless_mac", "wireless_interface_state", "mode",
-    }:
+
+    # Check wireless aliases first: "wlan" contains "lan", and older AirOS
+    # versions often expose Atheros interfaces as ath0/ath1.
+    if (
+        normalized.startswith(("wlan", "wireless", "wifi", "ath"))
+        or key in BASE_SENSORS
+        or normalized in {
+            "essid", "frequency", "mode",
+            "wireless_mac", "wireless_interface_state",
+        }
+    ):
         return "wireless"
-    # Keep the single canonical uptime sensor on the main device.
-    if key == "uptime_seconds":
+
+    # Keep the canonical uptime sensor and device-wide metrics on the parent.
+    if normalized == "uptime_seconds":
         return "main"
-    # Legacy AirOS keys may call the wired interface "lan" or "eth".
-    if normalized.startswith(("ethernet_", "lan", "eth")) or normalized == "ethernet_mac":
+
+    # Wired aliases include eth0/eth1, br0, ethernet_* and common legacy
+    # lanRx/lanTx/lanMac names. Avoid treating unrelated keys like "language"
+    # as Ethernet merely because they begin with the letters "lan".
+    if (
+        normalized.startswith(("ethernet", "eth", "br"))
+        or normalized == "lan"
+        or re.match(r"^lan(?:[0-9]|_|rx|tx|mac|state|interface)", normalized)
+    ):
         return "ethernet"
+
     return "main"
 
 
