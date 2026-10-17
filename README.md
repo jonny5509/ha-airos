@@ -45,6 +45,17 @@ errors reported after the integration loads.
 
 ---
 
+## Integration logo
+
+The integration is prepared for Home Assistant's local brand-image convention. When you have your logo ready, add these PNG files to `custom_components/airos_xs2/brand/`:
+
+- `icon.png` — 256 × 256 px
+- `icon@2x.png` — 512 × 512 px (high-resolution version)
+
+Use a square PNG with transparent background if possible. Keep the important artwork centered with some padding so it looks good when Home Assistant scales it. These files belong in the repository; uploading a logo to the HACS UI itself is not required. See [the logo placement notes](custom_components/airos_xs2/brand/README.md).
+
+---
+
 ## Screenshots
 
 ![Overview](docs/screenshots/Screenshot1.png)
