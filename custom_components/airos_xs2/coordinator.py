@@ -97,6 +97,13 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 key, value = line.strip().split("=", 1)
                 data[key] = value.strip()
 
+        # Expose only one canonical uptime sensor, populated by the procfs probe.
+        # airOS firmware may also report uptime-like keys in mca-status; discard
+        # those aliases so they cannot create duplicate entities.
+        for key in list(data):
+            if key.lower() in {"uptime", "uptime_seconds", "systemuptime"}:
+                data.pop(key, None)
+
         # Missing or malformed readings must stay unavailable, not look like real zeroes.
         for key in ("signal", "noise", "wlanTxRate", "wlanRxRate", "frequency"):
             value = _number(data.get(key))
