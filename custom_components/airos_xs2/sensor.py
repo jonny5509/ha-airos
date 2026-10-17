@@ -18,6 +18,8 @@ OPTIONAL_SENSORS = {
     "frequency": ("Wireless Frequency", "MHz"),
     "wlanMac": ("Wireless MAC Address", None),
     "ethernet_mac": ("Ethernet MAC Address", None),
+    "ethernet_interface_state": ("Ethernet Interface State", None),
+    "wireless_interface_state": ("Wireless Interface State", None),
     "wireless_mac": ("Wireless MAC Address", None),
     "mac": ("Device MAC Address", None),
     "mode": ("Wireless Mode", None),
@@ -77,6 +79,8 @@ SENSOR_NAME_OVERRIDES = {
     "wlanMac": "Wireless MAC Address",
     "wireless_mac": "Wireless MAC Address",
     "ethernet_mac": "Ethernet MAC Address",
+    "ethernet_interface_state": "Ethernet Interface State",
+    "wireless_interface_state": "Wireless Interface State",
     "mac": "Device MAC Address",
     "essid": "Wireless Network Name (SSID)",
     "frequency": "Wireless Frequency",
@@ -130,13 +134,13 @@ def _device_kind(key):
     normalized = key.lower()
     # Check WLAN first because "lan" is also present inside "wlan".
     if normalized.startswith(("wlan", "wireless_")) or key in BASE_SENSORS or key in {
-        "essid", "frequency", "wireless_mac", "mode",
+        "essid", "frequency", "wireless_mac", "wireless_interface_state", "mode",
     }:
         return "wireless"
     # Keep the single canonical uptime sensor on the main device.
     if key == "uptime_seconds":
         return "main"
-    if "lan" in normalized or normalized.startswith("ethernet_") or normalized == "ethernet_mac":
+    if normalized.startswith("ethernet_") or normalized == "ethernet_mac":
         return "ethernet"
     return "main"
 
@@ -152,7 +156,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         identifiers={(DOMAIN, entry.data["host"])},
         name=display_name,
         manufacturer="Ubiquiti",
-        model="Ubiquiti AirOS",
+        model=data.get("device_model") or "Ubiquiti AirOS",
     )
 
     sensors = [
@@ -172,7 +176,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             continue
         # IP discovery depends on an optional SSH probe. Register the entity
         # even if the first probe fails, so it can become available on later polls.
-        if key in {"ip_address", "uptime_seconds"} or data.get(key) not in (None, ""):
+        if key in {"ip_address", "uptime_seconds", "ethernet_interface_state", "wireless_interface_state"} or data.get(key) not in (None, ""):
             sensors.append(
                 AiRXS2Sensor(
                     coordinator, entry, key, unit, label,
@@ -258,8 +262,9 @@ class AiRXS2Sensor(SensorEntity):
             "identifiers": {(DOMAIN, host if self._device_kind == "main" else f"{host}_{self._device_kind}")},
             "name": self._device_name,
             "manufacturer": "Ubiquiti",
-            "model": "Ubiquiti AirOS" if self._device_kind == "main" else (
-                "AirOS Ethernet" if self._device_kind == "ethernet" else "AirOS Wireless"
+            "model": (self.coordinator.data or {}).get("device_model") or "Ubiquiti AirOS" if self._device_kind == "main" else (
+                f"{(self.coordinator.data or {}).get('device_model') or 'AirOS'} Ethernet" if self._device_kind == "ethernet" else
+                f"{(self.coordinator.data or {}).get('device_model') or 'AirOS'} Wireless"
             ),
         }
         if self._device_kind != "main":

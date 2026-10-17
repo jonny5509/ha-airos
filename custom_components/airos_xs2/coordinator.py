@@ -73,6 +73,8 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                     ("meminfo", "cat /proc/meminfo"),
                     ("loadavg", "cat /proc/loadavg"),
                     ("cpuinfo", "cat /proc/cpuinfo"),
+                    ("version", "cat /etc/version"),
+                    ("board", "cat /etc/board.info"),
                     ("ifconfig", "ifconfig"),
                     ("netdev", "cat /proc/net/dev"),
                 )
@@ -96,6 +98,9 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             if "=" in line:
                 key, value = line.strip().split("=", 1)
                 data[key] = value.strip()
+
+        # Identify hardware from metadata commonly exposed by different airOS builds.
+        self._identify_device(data, output)
 
         # Expose only one canonical uptime sensor, populated by the procfs probe.
         # airOS firmware may also report uptime-like keys in mca-status; discard
@@ -125,6 +130,31 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             data.pop("snr", None)
         return data
 
+    @staticmethod
+    def _identify_device(data, extra_output=""):
+        """Infer a readable model from airOS metadata and legacy system files."""
+        identity_keys = {
+            "platform", "deviceid", "board", "boardname", "board_name",
+            "product", "productname", "model", "devicemodel", "hardware",
+        }
+        parts = [extra_output]
+        for key, value in data.items():
+            if key.lower() in identity_keys or key.lower() in {"firmwareversion", "cpu_model"}:
+                parts.append(str(value))
+        identity = " ".join(parts)
+        compact = re.sub(r"[^a-z0-9]", "", identity.lower())
+        # Match the requested original NanoStation models before generic platform names.
+        if re.search(r"nanostation\s*2|\bns2\b|\bxs2\b", identity, re.IGNORECASE) or "nanostation2" in compact or "xs2" in compact:
+            data["device_model"] = "NanoStation2"
+        elif re.search(r"nanostation\s*5|\bns5\b|\bxs5\b", identity, re.IGNORECASE) or "nanostation5" in compact or "xs5" in compact:
+            data["device_model"] = "NanoStation5"
+        else:
+            for key in ("platform", "deviceId", "board", "board_name", "product", "model", "cpu_model"):
+                value = data.get(key)
+                if value and str(value).strip():
+                    data["device_model"] = str(value).strip()
+                    break
+
     def _parse_probe(self, name, output, data):
         if not output:
             return
@@ -151,6 +181,9 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
             if len(fields) >= 3:
                 for index, key in enumerate(("load_1m", "load_5m", "load_15m")):
                     data[key] = _number(fields[index])
+        elif name in {"version", "board"}:
+            # Some firmware exposes model/board identity in these files rather than mca-status.
+            self._identify_device(data, output)
         elif name == "cpuinfo":
             for line in output.splitlines():
                 if ":" in line and line.split(":", 1)[0].strip().lower() in (
@@ -159,32 +192,62 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                     value = line.split(":", 1)[1].strip()
                     if value:
                         data["cpu_model"] = value
+                        self._identify_device(data)
                         break
         elif name == "ifconfig":
-            # Support both BusyBox legacy "inet addr:" and newer "inet " output.
-            match = re.search(r"inet addr:([0-9.]+)", output)
-            if not match:
-                match = re.search(r"\binet ([0-9.]+)", output)
-            if match:
-                data["ip_address"] = match.group(1)
-            macs = re.findall(r"(?:HWaddr|ether)\s+([0-9A-Fa-f:]{17})", output)
-            if macs:
-                data.setdefault("ethernet_mac", macs[0])
-                if len(macs) > 1:
-                    data.setdefault("wireless_mac", macs[1])
+            # Parse each interface separately; order varies by firmware.
+            # Legacy airOS commonly uses ath0/wlan0, eth0, and br0.
+            blocks = re.split(r"(?m)^(?=[A-Za-z0-9_.:-]+\s+Link encap:)", output)
+            for block in blocks:
+                heading = re.match(r"^([A-Za-z0-9_.:-]+)\s+Link encap:", block)
+                if not heading:
+                    continue
+                interface = heading.group(1).lower()
+                is_wireless = interface.startswith(("wlan", "ath"))
+                is_ethernet = interface.startswith(("eth", "br"))
+                if not (is_wireless or is_ethernet):
+                    continue
+
+                prefix = "wireless" if is_wireless else "ethernet"
+                mac = re.search(r"(?:HWaddr|ether)\s+([0-9A-Fa-f:]{17})", block)
+                if mac:
+                    data.setdefault(f"{prefix}_mac", mac.group(1))
+                    if is_wireless:
+                        data.setdefault("wlanMac", mac.group(1))
+                ip = re.search(r"inet addr:([0-9.]+)", block)
+                if not ip:
+                    ip = re.search(r"\binet ([0-9.]+)", block)
+                if ip:
+                    data.setdefault("ip_address", ip.group(1))
+
+                flags = re.search(r"<([^>]+)>", block)
+                if flags:
+                    state = "up" if "UP" in flags.group(1).split(",") else "down"
+                    data.setdefault(f"{prefix}_interface_state", state)
+                elif re.search(r"(?m)^\s*UP(?:\s|$)", block):
+                    data.setdefault(f"{prefix}_interface_state", "up")
+                elif re.search(r"(?m)^\s*DOWN(?:\s|$)", block):
+                    data.setdefault(f"{prefix}_interface_state", "down")
+
         elif name == "netdev":
+            # Prefer physical interfaces to bridge aliases, avoiding br0 counters
+            # being mislabeled as the physical Ethernet port when eth0 is present.
+            counters = {}
             for line in output.splitlines():
                 if ":" not in line:
                     continue
                 interface, stats = line.split(":", 1)
-                interface = interface.strip()
+                interface = interface.strip().lower()
                 values = stats.split()
                 if len(values) < 9:
                     continue
-                prefix = "wireless" if interface.lower().startswith(("wlan", "ath")) else (
-                    "ethernet" if interface.lower().startswith(("eth", "br")) else None
-                )
-                if not prefix:
+                if interface.startswith(("wlan", "ath")):
+                    prefix, priority = "wireless", 2
+                elif interface.startswith("eth"):
+                    prefix, priority = "ethernet", 2
+                elif interface.startswith("br"):
+                    prefix, priority = "ethernet", 1
+                else:
                     continue
                 try:
                     rx_bytes = int(values[0])
@@ -192,5 +255,9 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 except (TypeError, ValueError):
                     _LOGGER.debug("Skipping malformed /proc/net/dev row: %s", line)
                     continue
-                data.setdefault(f"{prefix}_rx_bytes", rx_bytes)
-                data.setdefault(f"{prefix}_tx_bytes", tx_bytes)
+                previous = counters.get(prefix)
+                if previous is None or priority > previous[0]:
+                    counters[prefix] = (priority, rx_bytes, tx_bytes)
+            for prefix, (_, rx_bytes, tx_bytes) in counters.items():
+                data[f"{prefix}_rx_bytes"] = rx_bytes
+                data[f"{prefix}_tx_bytes"] = tx_bytes
