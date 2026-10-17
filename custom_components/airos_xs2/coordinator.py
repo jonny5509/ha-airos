@@ -485,7 +485,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 if not ip:
                     ip = re.search(r"\binet\s+(?:addr:)?([0-9.]+)", block)
                 if ip:
-                    data.setdefault("ip_address", ip.group(1))
+                    data.setdefault(f"{prefix}_ip_address", ip.group(1))
 
                 flags = re.search(r"<([^>]+)>", block)
                 if flags:

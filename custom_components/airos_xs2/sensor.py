@@ -18,6 +18,8 @@ OPTIONAL_SENSORS = {
     "frequency": ("Wireless Frequency", "MHz"),
     "wlanMac": ("Wireless MAC Address", None),
     "ethernet_mac": ("Ethernet MAC Address", None),
+    "ethernet_ip_address": ("Ethernet IP Address", None),
+    "wireless_ip_address": ("Wireless IP Address", None),
     "ethernet_interface_state": ("Ethernet Interface State", None),
     "wireless_interface_state": ("Wireless Interface State", None),
     "wireless_mac": ("Wireless MAC Address", None),
@@ -112,6 +114,8 @@ SENSOR_NAME_OVERRIDES = {
     "wlanMac": "Wireless MAC Address",
     "wireless_mac": "Wireless MAC Address",
     "ethernet_mac": "Ethernet MAC Address",
+    "ethernet_ip_address": "Ethernet IP Address",
+    "wireless_ip_address": "Wireless IP Address",
     "ethernet_interface_state": "Ethernet Interface State",
     "wireless_interface_state": "Wireless Interface State",
     "mac": "Device MAC Address",
@@ -393,7 +397,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             continue
         # IP discovery depends on an optional SSH probe. Register the entity
         # even if the first probe fails, so it can become available on later polls.
-        if key in {"ip_address", "uptime_seconds", "ethernet_interface_state", "wireless_interface_state", "cpu_usage", "firmware_upgrade", "ram_usage_percent"} or data.get(key) not in (None, ""):
+        if key in {"ip_address", "ethernet_ip_address", "wireless_ip_address", "uptime_seconds", "ethernet_interface_state", "wireless_interface_state", "cpu_usage", "firmware_upgrade", "ram_usage_percent"} or data.get(key) not in (None, ""):
             sensors.append(
                 AiRXS2Sensor(
                     coordinator, entry, key, unit, label,
