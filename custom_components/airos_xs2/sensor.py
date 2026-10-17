@@ -202,6 +202,14 @@ async def async_setup_entry(hass, entry, async_add_entities):
         model=f"{device_label} Ethernet",
         via_device=(DOMAIN, host),
     )
+    wireless_device = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, f"{host}_wireless")},
+        name=wireless_device_name,
+        manufacturer="Ubiquiti",
+        model=f"{device_label} Wireless",
+        via_device=(DOMAIN, host),
+    )
     entity_registry = er.async_get(hass)
 
     # Remove registry entries left behind by older releases that exposed raw
@@ -236,9 +244,15 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 entity_registry.async_update_entity(
                     entity.entity_id, new_entity_id="sensor.devicename"
                 )
-        if _device_kind(key) == "ethernet" and entity.device_id != ethernet_device.id:
+        kind = _device_kind(key)
+        target_device = (
+            wireless_device if kind == "wireless"
+            else ethernet_device if kind == "ethernet"
+            else None
+        )
+        if target_device and entity.device_id != target_device.id:
             entity_registry.async_update_entity(
-                entity.entity_id, device_id=ethernet_device.id
+                entity.entity_id, device_id=target_device.id
             )
 
     # The first probe may not identify the hardware. Update the main device
@@ -408,7 +422,7 @@ class AiRXS2Sensor(SensorEntity):
         if self._device_kind == "main":
             info.update(_device_registry_fields(data, host))
         if self._device_kind != "main":
-            info["via_device_id"] = self._parent_device_id
+            info["via_device"] = (DOMAIN, host)
         return DeviceInfo(**info)
 
     @property
