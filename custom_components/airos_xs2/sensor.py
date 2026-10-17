@@ -79,6 +79,7 @@ SENSOR_NAME_OVERRIDES = {
     "ethernet_interface_state": "Ethernet Interface State",
     "wireless_interface_state": "Wireless Interface State",
     "mac": "Device MAC Address",
+    "side_devicename": "Devicename",
     "essid": "Wireless Network Name (SSID)",
     "frequency": "Wireless Frequency",
     "mode": "Wireless Mode",
@@ -192,6 +193,13 @@ async def async_setup_entry(hass, entry, async_add_entities):
         if not entity.unique_id.startswith(prefix):
             continue
         key = entity.unique_id[len(prefix):]
+        # Normalize the legacy AirOS device-name entity to sensor.devicename.
+        # Keep its unique_id stable so Home Assistant can retain its history.
+        if key == "side_devicename" and entity.entity_id != "sensor.devicename":
+            if entity_registry.async_get("sensor.devicename") is None:
+                entity_registry.async_update_entity(
+                    entity.entity_id, new_entity_id="sensor.devicename"
+                )
         if _device_kind(key) == "ethernet" and entity.device_id != ethernet_device.id:
             entity_registry.async_update_entity(
                 entity.entity_id, device_id=ethernet_device.id
@@ -287,7 +295,10 @@ class AiRXS2Sensor(SensorEntity):
             self._device_name = f"{self._display_name} Wireless"
         else:
             self._device_name = self._display_name
-        self._attr_name = f"{self._display_name} {label or key}"
+        self._attr_name = (
+            "Devicename" if key == "side_devicename"
+            else f"{self._display_name} {label or key}"
+        )
         self._attr_unique_id = f"{entry.data['host']}_{key}" + (
             f"_{unique_id_suffix}" if unique_id_suffix else ""
         )
