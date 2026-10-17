@@ -7,7 +7,6 @@ import re
 BASE_SENSORS = {
     "signal": ("Wireless Signal", "dBm"),
     "noise": ("Wireless Noise", "dBm"),
-    "ccq": ("Wireless CCQ", "%"),
     "snr": ("Wireless SNR", "dB"),
     "wlanTxRate": ("Wireless Transmit Rate", "Mbit/s"),
     "wlanRxRate": ("Wireless Receive Rate", "Mbit/s"),
@@ -81,7 +80,6 @@ def _parse_device_name(raw_name):
 SENSOR_NAME_OVERRIDES = {
     "signal": "Wireless Signal",
     "noise": "Wireless Noise",
-    "ccq": "Wireless CCQ",
     "snr": "Wireless SNR",
     "wlanTxRate": "Wireless Transmit Rate",
     "wlanRxRate": "Wireless Receive Rate",
@@ -201,12 +199,13 @@ async def async_setup_entry(hass, entry, async_add_entities):
         "mem_available_bytes",
     }
     host_prefix = f"{host}_"
+    obsolete_optional_keys = {"ccq", "rx", "tx"}
     for entity in list(entity_registry.entities.values()):
         if entity.config_entry_id != entry.entry_id:
             continue
         if entity.unique_id.startswith(host_prefix):
             old_key = entity.unique_id[len(host_prefix):]
-            if old_key in obsolete_memory_keys:
+            if old_key in obsolete_memory_keys or old_key in obsolete_optional_keys:
                 entity_registry.async_remove(entity.entity_id)
 
     for entity in entity_registry.entities.values():
@@ -244,7 +243,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         for key, (label, unit) in BASE_SENSORS.items()
     ]
 
-    added_keys = set(BASE_SENSORS)
+    added_keys = set(BASE_SENSORS) | {"ccq", "rx", "tx"}
     for key, (label, unit) in OPTIONAL_SENSORS.items():
         # Prefer the MAC reported directly by AirOS over the interface-probe
         # alias when both describe the same wireless interface.
