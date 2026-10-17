@@ -1,6 +1,7 @@
 import asyncio
 import asyncssh
 import logging
+from contextlib import asynccontextmanager
 import re
 from datetime import timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -49,9 +50,44 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
         output = _to_text(stdout)
         return output if output.strip() else _to_text(stderr)
 
-    async def _async_update_data(self):
+    @staticmethod
+    def _is_legacy_algorithm_error(error):
+        """Identify SSH negotiation failures that can benefit from legacy algorithms."""
+        message = str(error).lower()
+        error_name = type(error).__name__.lower()
+        terms = (
+            "no matching key exchange",
+            "no matching encryption",
+            "no matching server host key",
+            "no matching mac",
+            "algorithm negotiation failed",
+            "unable to negotiate",
+        )
+        return (
+            "negotiation" in error_name
+            or "keyexchangefailed" in error_name
+            or any(term in message for term in terms)
+        )
+
+    @asynccontextmanager
+    async def _connect(self):
+        """Prefer secure defaults; use old AirOS SSH algorithms only when required."""
+        manager = asyncssh.connect(
+            self.host,
+            username=self.username,
+            password=self.password,
+            known_hosts=None,
+        )
         try:
-            async with asyncssh.connect(
+            conn = await manager.__aenter__()
+        except Exception as err:
+            if not self._is_legacy_algorithm_error(err):
+                raise
+            _LOGGER.debug(
+                "Modern SSH negotiation failed for %s; retrying with legacy AirOS algorithms",
+                self.host,
+            )
+            manager = asyncssh.connect(
                 self.host,
                 username=self.username,
                 password=self.password,
@@ -59,7 +95,20 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 kex_algs=["diffie-hellman-group1-sha1"],
                 encryption_algs=["aes128-cbc"],
                 server_host_key_algs=["ssh-rsa"],
-            ) as conn:
+            )
+            conn = await manager.__aenter__()
+
+        try:
+            yield conn
+        except BaseException as err:
+            await manager.__aexit__(type(err), err, err.__traceback__)
+            raise
+        else:
+            await manager.__aexit__(None, None, None)
+
+    async def _async_update_data(self):
+        try:
+            async with self._connect() as conn:
                 output = await self._run_command(conn, "mca-status")
                 if "=" not in output:
                     raise UpdateFailed(
@@ -334,28 +383,40 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                         self._identify_device(data)
                         break
         elif name == "ifconfig":
-            # Parse each interface separately; order varies by firmware.
-            # Legacy airOS commonly uses ath0/wlan0, eth0, and br0.
-            blocks = re.split(r"(?m)^(?=[A-Za-z0-9_.:-]+\s+Link encap:)", output)
+            # Parse both old net-tools output ("Link encap:") and newer
+            # BusyBox output ("eth0: flags=..."). Interface order differs across
+            # AirOS releases, so don't depend on a fixed order.
+            blocks = re.split(
+                r"(?m)^(?=[A-Za-z0-9_.:-]+(?:\\s+Link encap:|:?\\s+flags=|:\\s*flags=))",
+                output,
+            )
             for block in blocks:
-                heading = re.match(r"^([A-Za-z0-9_.:-]+)\s+Link encap:", block)
+                heading = re.match(
+                    r"^([A-Za-z0-9_.:-]+)(?:\\s+Link encap:|:?\\s+flags=|:\\s*flags=)",
+                    block,
+                )
                 if not heading:
                     continue
                 interface = heading.group(1).lower()
-                is_wireless = interface.startswith(("wlan", "ath"))
-                is_ethernet = interface.startswith(("eth", "br"))
+                is_wireless = interface.startswith(("wlan", "ath", "wifi", "ra"))
+                is_ethernet = interface.startswith(("eth", "br", "lan"))
                 if not (is_wireless or is_ethernet):
                     continue
 
                 prefix = "wireless" if is_wireless else "ethernet"
-                mac = re.search(r"(?:HWaddr|ether)\s+([0-9A-Fa-f:]{17})", block)
+                mac = re.search(
+                    r"(?:HWaddr|ether)\\s+([0-9A-Fa-f:]{17})",
+                    block,
+                    re.IGNORECASE,
+                )
                 if mac:
                     data.setdefault(f"{prefix}_mac", mac.group(1))
                     if is_wireless:
                         data.setdefault("wlanMac", mac.group(1))
+
                 ip = re.search(r"inet addr:([0-9.]+)", block)
                 if not ip:
-                    ip = re.search(r"\binet ([0-9.]+)", block)
+                    ip = re.search(r"\\binet\\s+(?:addr:)?([0-9.]+)", block)
                 if ip:
                     data.setdefault("ip_address", ip.group(1))
 
@@ -363,9 +424,9 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 if flags:
                     state = "up" if "UP" in flags.group(1).split(",") else "down"
                     data.setdefault(f"{prefix}_interface_state", state)
-                elif re.search(r"(?m)^\s*UP(?:\s|$)", block):
+                elif re.search(r"(?m)^\\s*UP(?:\\s|$)", block):
                     data.setdefault(f"{prefix}_interface_state", "up")
-                elif re.search(r"(?m)^\s*DOWN(?:\s|$)", block):
+                elif re.search(r"(?m)^\\s*DOWN(?:\\s|$)", block):
                     data.setdefault(f"{prefix}_interface_state", "down")
 
         elif name == "netdev":
