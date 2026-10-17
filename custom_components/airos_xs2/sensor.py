@@ -175,14 +175,19 @@ async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]
     data = coordinator.data or {}
     display_name, metadata = _parse_device_name(entry.data["name"])
+    detected_model = data.get("device_model")
+    device_label = detected_model or display_name or "AirOS"
+    wireless_device_name = f"{device_label}-Wireless"
+    ethernet_device_name = f"{device_label}-Ethernet"
+
     # Register the parent device first so child devices can reference its ID.
     device_registry = dr.async_get(hass)
     parent_device = device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, entry.data["host"])},
-        name=display_name,
+        name=device_label,
         manufacturer="Ubiquiti",
-        model=data.get("device_model") or "Ubiquiti AirOS",
+        model=detected_model or "Ubiquiti AirOS",
         **_device_registry_fields(data, entry.data["host"]),
     )
 
@@ -192,9 +197,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
     ethernet_device = device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, f"{host}_ethernet")},
-        name=f"{display_name} Ethernet",
+        name=ethernet_device_name,
         manufacturer="Ubiquiti",
-        model=f"{data.get('device_model') or 'AirOS'} Ethernet",
+        model=f"{device_label} Ethernet",
         via_device=(DOMAIN, host),
     )
     entity_registry = er.async_get(hass)
@@ -246,8 +251,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
         if not current_device:
             return
 
-        updates = _device_registry_fields(current_data, entry.data["host"])
         detected_model = current_data.get("device_model")
+        device_label = detected_model or display_name or "AirOS"
+        updates = _device_registry_fields(current_data, entry.data["host"])
+        updates["name"] = device_label
         if detected_model:
             updates["model"] = detected_model
 
@@ -258,6 +265,24 @@ async def async_setup_entry(hass, entry, async_add_entities):
         }
         if updates:
             device_registry.async_update_device(current_device.id, **updates)
+
+        # Rename already-registered child devices as soon as model detection succeeds.
+        for kind, suffix in (("wireless", "Wireless"), ("ethernet", "Ethernet")):
+            child = device_registry.async_get_device(
+                identifiers={(DOMAIN, f"{entry.data['host']}_{kind}")}
+            )
+            if child:
+                child_updates = {
+                    "name": f"{device_label}-{suffix}",
+                    "manufacturer": "Ubiquiti",
+                    "model": f"{device_label} {suffix}",
+                }
+                child_updates = {
+                    key: value for key, value in child_updates.items()
+                    if getattr(child, key, None) != value
+                }
+                if child_updates:
+                    device_registry.async_update_device(child.id, **child_updates)
 
     entry.async_on_unload(coordinator.async_add_listener(_update_registered_device_model))
 
@@ -330,12 +355,14 @@ class AiRXS2Sensor(SensorEntity):
         self._static_value = static_value
         self._device_kind = device_kind
         self._parent_device_id = parent_device_id
+        detected_model = (coordinator.data or {}).get("device_model")
+        device_label = detected_model or self._display_name or "AirOS"
         if device_kind == "ethernet":
-            self._device_name = f"{self._display_name} Ethernet"
+            self._device_name = f"{device_label}-Ethernet"
         elif device_kind == "wireless":
-            self._device_name = f"{self._display_name} Wireless"
+            self._device_name = f"{device_label}-Wireless"
         else:
-            self._device_name = self._display_name
+            self._device_name = device_label
         self._attr_name = (
             "Devicename" if key == "side_devicename"
             else f"{self._display_name} {label or key}"
