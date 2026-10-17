@@ -97,6 +97,7 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                     except Exception as err:
                         _LOGGER.debug("airOS probe %s unavailable: %s", name, err)
 
+                self._update_firmware_upgrade_status(data)
                 return data
 
         except UpdateFailed:
@@ -191,6 +192,39 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                     data["device_model"] = str(value).strip()
                     break
 
+    @staticmethod
+    def _update_firmware_upgrade_status(data):
+        """Compare supported legacy NanoStation5 firmware with Ubiquiti's published release."""
+        # Ubiquiti's published final legacy NanoStation5 release is v4.0.4
+        # build 5074. Do not extrapolate this catalog entry to other models.
+        data["firmware_upgrade_latest_version"] = "4.0.4.5074"
+        data["firmware_upgrade_source"] = "https://ui.com/download/airmax-legacy/nanostation/ns5"
+
+        if data.get("device_model") != "NanoStation5":
+            data["firmware_upgrade"] = "Unknown"
+            data["firmware_upgrade_reason"] = "No verified firmware catalog entry for this device model."
+            return
+
+        installed = str(data.get("firmwareVersion") or "")
+        match = re.search(r"v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?", installed, re.IGNORECASE)
+        if not match:
+            data["firmware_upgrade"] = "Unknown"
+            data["firmware_upgrade_reason"] = "Installed firmware version could not be parsed."
+            return
+
+        installed_version = tuple(int(part or 0) for part in match.groups())
+        latest_version = (4, 0, 4, 5074)
+        data["firmware_upgrade_installed_version"] = ".".join(str(part) for part in installed_version)
+        if installed_version < latest_version:
+            data["firmware_upgrade"] = "Update available"
+            data["firmware_upgrade_reason"] = "A newer published legacy NanoStation5 firmware version exists. Check release notes and upgrade prerequisites before installing."
+        elif installed_version == latest_version:
+            data["firmware_upgrade"] = "Up to date"
+            data["firmware_upgrade_reason"] = "Installed version matches the published legacy NanoStation5 release."
+        else:
+            data["firmware_upgrade"] = "Unknown"
+            data["firmware_upgrade_reason"] = "Installed version is newer than the catalog entry; automatic comparison is inconclusive."
+
     def _parse_probe(self, name, output, data):
         if not output:
             return
@@ -262,8 +296,14 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                         io_wait = values.get("io", 0.0)
                         usage = max(0.0, min(100.0, 100.0 - idle - io_wait))
                         data["cpu_usage"] = round(usage, 2)
-        elif name in {"version", "board"}:
-            # Some firmware exposes model/board identity in these files rather than mca-status.
+        elif name == "version":
+            # The legacy /etc/version file often contains the full firmware build,
+            # even when mca-status does not expose firmwareVersion.
+            if re.search(r"(?i)(?:XS5|NS5|NanoStation)", output) and re.search(r"\d+\.\d+\.\d+", output):
+                data.setdefault("firmwareVersion", output.strip().splitlines()[0])
+            self._identify_device(data, output)
+        elif name == "board":
+            # Some firmware exposes model/board identity in this file.
             self._identify_device(data, output)
         elif name == "cpuinfo":
             for line in output.splitlines():
