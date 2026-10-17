@@ -1,11 +1,16 @@
 import voluptuous as vol
 from homeassistant import config_entries
+
 from .const import DOMAIN
 
+
 class AiRXS2ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle the AirOS integration setup."""
+
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
+        """Show the AirOS connection form and create the config entry."""
         if user_input is not None:
             return self.async_create_entry(
                 title=user_input["name"],
