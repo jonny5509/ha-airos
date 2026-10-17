@@ -27,7 +27,6 @@ OPTIONAL_SENSORS = {
     "uptime_seconds": ("Uptime", "s"),
     "ip_address": ("Device IP Address", None),
     "cpu_model": ("CPU Model", None),
-    "device_model": ("Detected Device Model", None),
     "load_1m": ("CPU Load (1 Minute)", None),
     "load_5m": ("CPU Load (5 Minutes)", None),
     "load_15m": ("CPU Load (15 Minutes)", None),
@@ -90,7 +89,6 @@ SENSOR_NAME_OVERRIDES = {
     "uptime_seconds": "Uptime",
     "ip_address": "Device IP Address",
     "cpu_model": "CPU Model",
-    "device_model": "Detected Device Model",
     "load_1m": "CPU Load (1 Minute)",
     "load_5m": "CPU Load (5 Minutes)",
     "load_15m": "CPU Load (15 Minutes)",
@@ -178,7 +176,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             continue
         # IP discovery depends on an optional SSH probe. Register the entity
         # even if the first probe fails, so it can become available on later polls.
-        if key in {"ip_address", "uptime_seconds", "device_model", "ethernet_interface_state", "wireless_interface_state"} or data.get(key) not in (None, ""):
+        if key in {"ip_address", "uptime_seconds", "ethernet_interface_state", "wireless_interface_state"} or data.get(key) not in (None, ""):
             sensors.append(
                 AiRXS2Sensor(
                     coordinator, entry, key, unit, label,
