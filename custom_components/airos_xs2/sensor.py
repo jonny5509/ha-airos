@@ -159,6 +159,21 @@ async def async_setup_entry(hass, entry, async_add_entities):
         model=data.get("device_model") or "Ubiquiti AirOS",
     )
 
+    # The first probe may not identify the hardware. Update the main device
+    # registry entry on later coordinator refreshes once a specific model appears.
+    def _update_registered_device_model():
+        detected_model = (coordinator.data or {}).get("device_model")
+        if detected_model and detected_model != "Ubiquiti AirOS":
+            current_device = device_registry.async_get_device(
+                identifiers={(DOMAIN, entry.data["host"])}
+            )
+            if current_device and current_device.model != detected_model:
+                device_registry.async_update_device(
+                    current_device.id, model=detected_model
+                )
+
+    entry.async_on_unload(coordinator.async_add_listener(_update_registered_device_model))
+
     sensors = [
         AiRXS2Sensor(
             coordinator, entry, key, unit, label, display_name=display_name,
