@@ -190,6 +190,10 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 if flags:
                     state = "up" if "UP" in flags.group(1).split(",") else "down"
                     data.setdefault(f"{prefix}_interface_state", state)
+                elif re.search(r"(?m)^\\s*UP(?:\\s|$)", block):
+                    data.setdefault(f"{prefix}_interface_state", "up")
+                elif re.search(r"(?m)^\\s*DOWN(?:\\s|$)", block):
+                    data.setdefault(f"{prefix}_interface_state", "down")
 
         elif name == "netdev":
             # Prefer physical interfaces to bridge aliases, avoiding br0 counters
