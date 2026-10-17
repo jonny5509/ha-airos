@@ -144,9 +144,9 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
         identity = " ".join(parts)
         compact = re.sub(r"[^a-z0-9]", "", identity.lower())
         # Match the requested original NanoStation models before generic platform names.
-        if re.search(r"nanostation\s*2|\bns2\b", identity, re.IGNORECASE) or "nanostation2" in compact:
+        if re.search(r"nanostation\s*2|\bns2\b|\bxs2\b", identity, re.IGNORECASE) or "nanostation2" in compact or "xs2" in compact:
             data["device_model"] = "NanoStation2"
-        elif re.search(r"nanostation\s*5|\bns5\b", identity, re.IGNORECASE) or "nanostation5" in compact:
+        elif re.search(r"nanostation\s*5|\bns5\b|\bxs5\b", identity, re.IGNORECASE) or "nanostation5" in compact or "xs5" in compact:
             data["device_model"] = "NanoStation5"
         else:
             for key in ("platform", "deviceId", "board", "board_name", "product", "model", "cpu_model"):
