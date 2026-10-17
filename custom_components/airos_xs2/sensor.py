@@ -29,9 +29,7 @@ OPTIONAL_SENSORS = {
     "cpu_model": ("CPU Model", None),
     "cpu_usage": ("CPU Usage", "%"),
     "firmware_upgrade": ("Firmware Upgrade", None),
-    "mem_total_bytes": ("Total Memory", "B"),
-    "mem_free_bytes": ("Free Memory", "B"),
-    "mem_available_bytes": ("Available Memory", "B"),
+    "ram_usage_percent": ("RAM Usage", "%"),
     "ethernet_rx_bytes": ("Ethernet Bytes Received", "B"),
     "ethernet_tx_bytes": ("Ethernet Bytes Sent", "B"),
     "wireless_rx_bytes": ("Wireless Bytes Received", "B"),
@@ -90,9 +88,7 @@ SENSOR_NAME_OVERRIDES = {
     "cpu_model": "CPU Model",
     "cpu_usage": "CPU Usage",
     "firmware_upgrade": "Firmware Upgrade",
-    "mem_total_bytes": "Total Memory",
-    "mem_free_bytes": "Free Memory",
-    "mem_available_bytes": "Available Memory",
+    "ram_usage_percent": "RAM Usage",
     "ethernet_rx_bytes": "Ethernet Bytes Received",
     "ethernet_tx_bytes": "Ethernet Bytes Sent",
     "wireless_rx_bytes": "Wireless Bytes Received",
@@ -214,7 +210,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             continue
         # IP discovery depends on an optional SSH probe. Register the entity
         # even if the first probe fails, so it can become available on later polls.
-        if key in {"ip_address", "uptime_seconds", "ethernet_interface_state", "wireless_interface_state", "cpu_usage", "firmware_upgrade"} or data.get(key) not in (None, ""):
+        if key in {"ip_address", "uptime_seconds", "ethernet_interface_state", "wireless_interface_state", "cpu_usage", "firmware_upgrade", "ram_usage_percent"} or data.get(key) not in (None, ""):
             sensors.append(
                 AiRXS2Sensor(
                     coordinator, entry, key, unit, label,
@@ -227,6 +223,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
     # Firmware detail fields are attributes of the single Firmware Upgrade sensor,
     # not separate entities of their own.
     added_keys.update(key for key in data if key.startswith("firmware_upgrade_"))
+    # Raw memory counters are attributes of RAM Usage, not separate entities.
+    added_keys.update({"mem_total_bytes", "mem_free_bytes", "mem_available_bytes"})
 
     for key, value in data.items():
         if key not in added_keys and value not in (None, ""):
@@ -284,8 +282,7 @@ class AiRXS2Sensor(SensorEntity):
             self._attr_device_class = SensorDeviceClass.FREQUENCY
         elif key == "uptime_seconds":
             self._attr_device_class = SensorDeviceClass.DURATION
-        elif key in {"mem_total_bytes", "mem_free_bytes", "mem_available_bytes",
-                     "ethernet_rx_bytes", "ethernet_tx_bytes",
+        elif key in {"ethernet_rx_bytes", "ethernet_tx_bytes",
                      "wireless_rx_bytes", "wireless_tx_bytes"}:
             self._attr_device_class = SensorDeviceClass.DATA_SIZE
 
@@ -294,7 +291,7 @@ class AiRXS2Sensor(SensorEntity):
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         elif key in {"signal", "noise", "ccq", "snr", "wlanTxRate", "wlanRxRate",
                      "frequency", "cpu_usage",
-                     "mem_total_bytes", "mem_free_bytes", "mem_available_bytes"}:
+                     "ram_usage_percent"}:
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
@@ -321,9 +318,15 @@ class AiRXS2Sensor(SensorEntity):
 
     @property
     def extra_state_attributes(self):
+        data = self.coordinator.data or {}
+        if self.key == "ram_usage_percent":
+            return {
+                key: data[key]
+                for key in ("mem_total_bytes", "mem_free_bytes", "mem_available_bytes")
+                if data.get(key) is not None
+            }
         if self.key != "firmware_upgrade":
             return None
-        data = self.coordinator.data or {}
         return {
             key.removeprefix("firmware_upgrade_"): data[key]
             for key in (
