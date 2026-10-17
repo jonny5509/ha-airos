@@ -117,7 +117,10 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
         # Split those fields into their own values so Home Assistant can expose
         # them as individual sensors instead of hiding them in the name sensor.
         for key, value in list(data.items()):
-            if key.lower() != "side_devicename":
+            # Depending on the AirOS generation, identity metadata is returned
+            # under side_devicename or deviceName. Both may contain a comma-
+            # separated metadata blob rather than just a human-readable name.
+            if key.lower() not in {"side_devicename", "devicename"}:
                 continue
             parts = [part.strip() for part in value.split(",")]
             data[key] = parts[0] or "AirOS Device"
@@ -135,6 +138,12 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 metadata_value = metadata_value.strip()
                 if canonical_key and metadata_value:
                     data.setdefault(canonical_key, metadata_value)
+
+            # Keep the legacy side_devicename entity ID working if the device
+            # reports its name using the newer deviceName key.
+            if key.lower() == "devicename":
+                data.setdefault("side_devicename", data[key])
+                data.pop(key, None)
 
         # Identify hardware from metadata commonly exposed by different airOS builds.
         self._identify_device(data, output)
