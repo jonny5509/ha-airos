@@ -8,7 +8,7 @@ import re
 # low-value driver internals. Keep the normalized LAN/WLAN counters instead.
 IGNORED_DYNAMIC_SENSOR_KEYS = {
     "bytesreceived", "bytessent", "ccq", "connections",
-    "interfacestate", "rxbytes", "txbytes", "rxpackets", "txpackets",
+    "interfacestate", "ipaddress", "rxbytes", "txbytes", "rxpackets", "txpackets",
     "rxerrors", "txerrors", "rxerrbmiss", "rxerrcrypt", "rxerrfrag",
     "rxerrnwid", "rxerrother", "rxerrretries", "txlatency",
 }
@@ -223,7 +223,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
             if (
                 old_key in obsolete_memory_keys
                 or old_key in obsolete_optional_keys
-                or _normalized_sensor_key(old_key) in IGNORED_DYNAMIC_SENSOR_KEYS
+                or (
+                    _normalized_sensor_key(old_key) in IGNORED_DYNAMIC_SENSOR_KEYS
+                    and old_key not in {
+                        "ip_address", "wireless_ip_address", "ethernet_ip_address"
+                    }
+                )
             ):
                 entity_registry.async_remove(entity.entity_id)
 
@@ -384,7 +389,11 @@ class AiRXS2Sensor(SensorEntity):
     def native_value(self):
         if self._static_value is not None:
             return self._static_value
-        return (self.coordinator.data or {}).get(self.key)
+        value = (self.coordinator.data or {}).get(self.key)
+        if self.key in {"ip_address", "wireless_ip_address", "ethernet_ip_address"}:
+            if value is not None and str(value).strip().lower() in {"", "unknown", "0.0.0.0"}:
+                return None
+        return value
 
     @property
     def extra_state_attributes(self):
