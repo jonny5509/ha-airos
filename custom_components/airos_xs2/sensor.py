@@ -18,6 +18,8 @@ OPTIONAL_SENSORS = {
     "frequency": ("Wireless Frequency", "MHz"),
     "wlanMac": ("Wireless MAC Address", None),
     "ethernet_mac": ("Ethernet MAC Address", None),
+    "ethernet_interface_state": ("Ethernet Interface State", None),
+    "wireless_interface_state": ("Wireless Interface State", None),
     "wireless_mac": ("Wireless MAC Address", None),
     "mac": ("Device MAC Address", None),
     "mode": ("Wireless Mode", None),
@@ -77,6 +79,8 @@ SENSOR_NAME_OVERRIDES = {
     "wlanMac": "Wireless MAC Address",
     "wireless_mac": "Wireless MAC Address",
     "ethernet_mac": "Ethernet MAC Address",
+    "ethernet_interface_state": "Ethernet Interface State",
+    "wireless_interface_state": "Wireless Interface State",
     "mac": "Device MAC Address",
     "essid": "Wireless Network Name (SSID)",
     "frequency": "Wireless Frequency",
@@ -130,13 +134,13 @@ def _device_kind(key):
     normalized = key.lower()
     # Check WLAN first because "lan" is also present inside "wlan".
     if normalized.startswith(("wlan", "wireless_")) or key in BASE_SENSORS or key in {
-        "essid", "frequency", "wireless_mac", "mode",
+        "essid", "frequency", "wireless_mac", "wireless_interface_state", "mode",
     }:
         return "wireless"
     # Keep the single canonical uptime sensor on the main device.
     if key == "uptime_seconds":
         return "main"
-    if "lan" in normalized or normalized.startswith("ethernet_") or normalized == "ethernet_mac":
+    if normalized.startswith("ethernet_") or normalized == "ethernet_mac":
         return "ethernet"
     return "main"
 
