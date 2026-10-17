@@ -2,10 +2,14 @@
   "domain": "airos_xs2",
   "name": "Ubiquiti AirOS (SSH)",
   "version": "1.2.1",
-  "documentation": "https://github.com/cmptrblder/airos_xs2",
-  "requirements": ["asyncssh==2.24.1"],
+  "documentation": "https://github.com/jonny5509/ha-airos",
+  "requirements": [
+    "asyncssh==2.24.1"
+  ],
   "dependencies": [],
-  "codeowners": ["@cmptrblder"],
+  "codeowners": [
+    "@jonny5509"
+  ],
   "config_flow": true,
   "iot_class": "local_polling"
 }
