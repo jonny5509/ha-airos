@@ -2,6 +2,7 @@
   "config": {
     "step": {
       "user": {
+        "description": "Set up your AirOS device. This integration communicates with your device over an SSH connection. Enter your device's host address and login credentials to get started.",
         "data": {
           "name": "Title",
           "host": "Host",
