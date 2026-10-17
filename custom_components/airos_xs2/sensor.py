@@ -4,6 +4,21 @@ from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
 import re
 
+# Raw mca-status fields that duplicate canonical interface sensors or expose
+# low-value driver internals. Keep the normalized LAN/WLAN counters instead.
+IGNORED_DYNAMIC_SENSOR_KEYS = {
+    "bytesreceived", "bytessent", "ccq", "connections",
+    "interfacestate", "rxbytes", "txbytes", "rxpackets", "txpackets",
+    "rxerrors", "txerrors", "rxerrbmiss", "rxerrcrypt", "rxerrfrag",
+    "rxerrnwid", "rxerrother", "rxerrretries", "txlatency",
+}
+
+
+def _normalized_sensor_key(key):
+    """Normalize a raw AirOS field name for duplicate/obsolete key matching."""
+    return re.sub(r"[^a-z0-9]", "", key.lower())
+
+
 BASE_SENSORS = {
     "signal": ("Wireless Signal", "dBm"),
     "noise": ("Wireless Noise", "dBm"),
@@ -205,7 +220,11 @@ async def async_setup_entry(hass, entry, async_add_entities):
             continue
         if entity.unique_id.startswith(host_prefix):
             old_key = entity.unique_id[len(host_prefix):]
-            if old_key in obsolete_memory_keys or old_key in obsolete_optional_keys:
+            if (
+                old_key in obsolete_memory_keys
+                or old_key in obsolete_optional_keys
+                or _normalized_sensor_key(old_key) in IGNORED_DYNAMIC_SENSOR_KEYS
+            ):
                 entity_registry.async_remove(entity.entity_id)
 
     for entity in entity_registry.entities.values():
@@ -269,6 +288,11 @@ async def async_setup_entry(hass, entry, async_add_entities):
     added_keys.update({"mem_total_bytes", "mem_free_bytes", "mem_available_bytes"})
 
     for key, value in data.items():
+        # Suppress raw AirOS aliases/driver details when the canonical interface
+        # sensors already provide the useful counters and connection state.
+        if _normalized_sensor_key(key) in IGNORED_DYNAMIC_SENSOR_KEYS:
+            added_keys.add(key)
+            continue
         if key not in added_keys and value not in (None, ""):
             sensors.append(
                 AiRXS2Sensor(
