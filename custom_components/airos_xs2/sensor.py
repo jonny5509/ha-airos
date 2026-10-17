@@ -183,6 +183,7 @@ def _device_kind(key):
     # versions often expose Atheros interfaces as ath0/ath1.
     if (
         normalized.startswith(("wlan", "wireless", "wifi", "ath"))
+        or re.match(r"^ra(?:[0-9]|_|rx|tx|mac|state|interface)", normalized)
         or key in BASE_SENSORS
         or normalized in {
             "essid", "frequency", "mode",
@@ -196,10 +197,11 @@ def _device_kind(key):
         return "main"
 
     # Wired aliases include eth0/eth1, br0, ethernet_* and common legacy
-    # lanRx/lanTx/lanMac names. Avoid treating unrelated keys like "language"
-    # as Ethernet merely because they begin with the letters "lan".
+    # lanRx/lanTx/lanMac names. Match interface aliases precisely so unrelated
+    # device-wide keys beginning with "br" or "eth" stay on the parent.
     if (
-        normalized.startswith(("ethernet", "eth", "br"))
+        normalized.startswith("ethernet")
+        or re.match(r"^(?:eth|br)(?:[0-9]|_|rx|tx|mac|state|interface)", normalized)
         or normalized == "lan"
         or re.match(r"^lan(?:[0-9]|_|rx|tx|mac|state|interface)", normalized)
     ):
