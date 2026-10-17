@@ -517,14 +517,27 @@ class AiRXS2Coordinator(DataUpdateCoordinator):
                 else:
                     continue
                 try:
+                    # /proc/net/dev columns are RX bytes, packets, errors, drops,
+                    # then TX bytes, packets, errors, drops. Older kernels may
+                    # expose fewer columns, so retain byte counters when possible.
                     rx_bytes = int(values[0])
                     tx_bytes = int(values[8])
+                    metrics = {"rx_bytes": rx_bytes, "tx_bytes": tx_bytes}
+                    if len(values) >= 12:
+                        metrics.update({
+                            "rx_packets": int(values[1]),
+                            "rx_errors": int(values[2]),
+                            "rx_dropped": int(values[3]),
+                            "tx_packets": int(values[9]),
+                            "tx_errors": int(values[10]),
+                            "tx_dropped": int(values[11]),
+                        })
                 except (TypeError, ValueError):
                     _LOGGER.debug("Skipping malformed /proc/net/dev row: %s", line)
                     continue
                 previous = counters.get(prefix)
                 if previous is None or priority > previous[0]:
-                    counters[prefix] = (priority, rx_bytes, tx_bytes)
-            for prefix, (_, rx_bytes, tx_bytes) in counters.items():
-                data[f"{prefix}_rx_bytes"] = rx_bytes
-                data[f"{prefix}_tx_bytes"] = tx_bytes
+                    counters[prefix] = (priority, metrics)
+            for prefix, (_, metrics) in counters.items():
+                for metric, value in metrics.items():
+                    data[f"{prefix}_{metric}"] = value
