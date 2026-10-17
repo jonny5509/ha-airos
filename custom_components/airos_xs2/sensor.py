@@ -11,6 +11,7 @@ IGNORED_DYNAMIC_SENSOR_KEYS = {
     "interfacestate", "ipaddress", "rxbytes", "txbytes", "rxpackets", "txpackets",
     "rxerrors", "txerrors", "rxerrbmiss", "rxerrcrypt", "rxerrfrag",
     "rxerrnwid", "rxerrother", "rxerrretries", "txlatency",
+    "plugged", "cablelink",
 }
 
 
@@ -390,8 +391,8 @@ class AiRXS2Sensor(SensorEntity):
         if self._static_value is not None:
             return self._static_value
         value = (self.coordinator.data or {}).get(self.key)
-        if self.key in {"ip_address", "wireless_ip_address", "ethernet_ip_address"}:
-            if value is not None and str(value).strip().lower() in {"", "unknown", "0.0.0.0"}:
+        if self.key in {"ip_address", "wireless_ip_address", "ethernet_ip_address", "ethernet_link_detected", "wireless_link_detected"}:
+            if value is not None and str(value).strip().lower() in {"", "unknown", "0.0.0.0", "none", "n/a"}:
                 return None
         return value
 
