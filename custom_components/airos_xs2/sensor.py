@@ -34,6 +34,18 @@ OPTIONAL_SENSORS = {
     "ethernet_tx_bytes": ("Ethernet Bytes Sent", "B"),
     "wireless_rx_bytes": ("Wireless Bytes Received", "B"),
     "wireless_tx_bytes": ("Wireless Bytes Sent", "B"),
+    "ethernet_rx_packets": ("Ethernet Packets Received", "packets"),
+    "ethernet_tx_packets": ("Ethernet Packets Sent", "packets"),
+    "ethernet_rx_errors": ("Ethernet Receive Errors", "errors"),
+    "ethernet_tx_errors": ("Ethernet Transmit Errors", "errors"),
+    "wireless_rx_packets": ("Wireless Packets Received", "packets"),
+    "wireless_tx_packets": ("Wireless Packets Sent", "packets"),
+    "wireless_rx_errors": ("Wireless Receive Errors", "errors"),
+    "wireless_tx_errors": ("Wireless Transmit Errors", "errors"),
+    "ethernet_ip_address": ("Ethernet IP Address", None),
+    "wireless_ip_address": ("Wireless IP Address", None),
+    "ethernet_link_detected": ("Ethernet Cable / Link", None),
+    "wireless_link_detected": ("Wireless Link", None),
 }
 
 DEVICE_METADATA = {
@@ -93,6 +105,18 @@ SENSOR_NAME_OVERRIDES = {
     "ethernet_tx_bytes": "Ethernet Bytes Sent",
     "wireless_rx_bytes": "Wireless Bytes Received",
     "wireless_tx_bytes": "Wireless Bytes Sent",
+    "ethernet_rx_packets": "Ethernet Packets Received",
+    "ethernet_tx_packets": "Ethernet Packets Sent",
+    "ethernet_rx_errors": "Ethernet Receive Errors",
+    "ethernet_tx_errors": "Ethernet Transmit Errors",
+    "wireless_rx_packets": "Wireless Packets Received",
+    "wireless_tx_packets": "Wireless Packets Sent",
+    "wireless_rx_errors": "Wireless Receive Errors",
+    "wireless_tx_errors": "Wireless Transmit Errors",
+    "ethernet_ip_address": "Ethernet IP Address",
+    "wireless_ip_address": "Wireless IP Address",
+    "ethernet_link_detected": "Ethernet Cable / Link",
+    "wireless_link_detected": "Wireless Link",
     "deviceId": "Device ID",
     "firmwareVersion": "Firmware Version",
     "platform": "Platform",
@@ -229,7 +253,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             continue
         # IP discovery depends on an optional SSH probe. Register the entity
         # even if the first probe fails, so it can become available on later polls.
-        if key in {"ip_address", "uptime_seconds", "ethernet_interface_state", "wireless_interface_state", "cpu_usage", "firmware_upgrade", "ram_usage_percent"} or data.get(key) not in (None, ""):
+        if key in {"ip_address", "ethernet_ip_address", "wireless_ip_address", "ethernet_interface_state", "wireless_interface_state", "ethernet_link_detected", "wireless_link_detected", "uptime_seconds", "cpu_usage", "firmware_upgrade", "ram_usage_percent", "ethernet_rx_bytes", "ethernet_tx_bytes", "wireless_rx_bytes", "wireless_tx_bytes", "ethernet_rx_packets", "ethernet_tx_packets", "wireless_rx_packets", "wireless_tx_packets", "ethernet_rx_errors", "ethernet_tx_errors", "wireless_rx_errors", "wireless_tx_errors"} or data.get(key) not in (None, ""):
             sensors.append(
                 AiRXS2Sensor(
                     coordinator, entry, key, unit, label,
@@ -306,7 +330,11 @@ class AiRXS2Sensor(SensorEntity):
             self._attr_device_class = SensorDeviceClass.DATA_SIZE
 
         if key in {"ethernet_rx_bytes", "ethernet_tx_bytes",
-                   "wireless_rx_bytes", "wireless_tx_bytes"}:
+                   "wireless_rx_bytes", "wireless_tx_bytes",
+                   "ethernet_rx_packets", "ethernet_tx_packets",
+                   "wireless_rx_packets", "wireless_tx_packets",
+                   "ethernet_rx_errors", "ethernet_tx_errors",
+                   "wireless_rx_errors", "wireless_tx_errors"}:
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         elif key in {"signal", "noise", "ccq", "snr", "wlanTxRate", "wlanRxRate",
                      "frequency", "cpu_usage",
