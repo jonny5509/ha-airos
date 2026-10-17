@@ -319,6 +319,28 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 if child_updates:
                     device_registry.async_update_device(child.id, **child_updates)
 
+        # Reconcile entity ownership as well as names. This also repairs existing
+        # registry entries after an upgrade, where entities may still be linked
+        # to the parent device or the wrong child device.
+        current_host = entry.data["host"]
+        prefix = f"{current_host}_"
+        for entity in list(entity_registry.entities.values()):
+            if entity.config_entry_id != entry.entry_id or not entity.unique_id.startswith(prefix):
+                continue
+            key = entity.unique_id[len(prefix):]
+            kind = _device_kind(key)
+            target = None
+            if kind == "wireless":
+                target = device_registry.async_get_device(
+                    identifiers={(DOMAIN, f"{current_host}_wireless")}
+                )
+            elif kind == "ethernet":
+                target = device_registry.async_get_device(
+                    identifiers={(DOMAIN, f"{current_host}_ethernet")}
+                )
+            if target and entity.device_id != target.id:
+                entity_registry.async_update_entity(entity.entity_id, device_id=target.id)
+
     entry.async_on_unload(coordinator.async_add_listener(_update_registered_device_model))
 
     sensors = [
