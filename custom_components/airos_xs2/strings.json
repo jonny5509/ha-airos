@@ -1,0 +1,16 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "AirOS",
+        "description": "Enter the connection details for your AirOS device.",
+        "data": {
+          "name": "Name",
+          "host": "Host or IP address",
+          "username": "Username",
+          "password": "Password"
+        }
+      }
+    }
+  }
+}
